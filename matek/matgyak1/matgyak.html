@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="version" content="32">
+  <meta name="version" content="33">
   <title>Matekkvíz 0–20</title>
   <style>
     /* ----- Reset & base ---------------------------------------------- */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { overflow: hidden; height: 100%; }
+    html, body { height: 100%; overflow: hidden; }
     body {
       display: flex;
       flex-direction: column;
@@ -36,7 +36,7 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
-      flex: 0 0 auto;           /* fixed height, never shrinks */
+      flex: 0 0 auto; /* fixed height */
     }
     #control-row {
       display: flex;
@@ -46,7 +46,7 @@
       gap: 8px;
     }
     #new-btn { padding: 8px 18px; font-size: 16px; }
-    #stats   { font-size: clamp(14px, 3.5vw, 16px); white-space: nowrap; }
+    #stats   { font-size: clamp(14px,3.5vw,16px); white-space: nowrap; }
 
     .highlight {
       transition: transform 0.4s ease, color 0.4s ease;
@@ -63,8 +63,8 @@
       overflow: hidden;
       position: relative;
     }
-    #score-bar { height: 100%; background: #4caf50; width: 0%; transition: width 0.2s; }
-    #timer-bar { height: 100%; background: #66aaff; width: 100%; transition: width linear; }
+    #score-bar  { height: 100%; background:#4caf50; width:0%;  transition: width 0.2s; }
+    #timer-bar  { height: 100%; background:#66aaff; width:100%; transition: width linear; }
 
     /* ----- Main (quiz) container -------------------------------------- */
     .container {
@@ -74,8 +74,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between; /* distribute so no scroll */
-      padding: 6px 0 10px;
+      justify-content: center;  /* keep grid centered vertically */
+      position: relative;       /* for feedback overlay */
     }
 
     /* ----- Left side (equation) --------------------------------------- */
@@ -83,14 +83,15 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: clamp(28px, 7.5vw, 36px);
+      font-size: clamp(28px,7.5vw,36px);
       font-weight: bold;
-      flex-wrap: wrap;            /* prevent horizontal overflow */
+      flex-wrap: wrap; /* prevent overflow on very narrow devices */
       justify-content: center;
-      flex: 0 0 auto;             /* keep natural height */
+      flex: 0 0 auto;
+      margin-bottom: 10px;
     }
     .left-side .box {
-      width: clamp(50px, 13vw, 80px);
+      width: clamp(50px,13vw,80px);
       aspect-ratio: 1 / 1;
       border: 3px solid #333;
       display: flex;
@@ -103,20 +104,18 @@
     /* ----- Right side (answer grid) ----------------------------------- */
     .right-side {
       display: grid;
-      grid-template-columns: repeat(7, 1fr); /* ALWAYS 7 per row */
-      grid-template-rows: repeat(3, 1fr);    /* ALWAYS 3 rows  */
+      grid-template-columns: repeat(7, 1fr); /* always 7 columns */
+      grid-template-rows: repeat(3, 1fr);    /* always 3 rows    */
       gap: 6px;
       width: 100%;
-      flex: 1 1 0;              /* grow to use free height */
-      align-items: center;
-      justify-items: center;
-      padding: 0 20px;          /* horizontal padding only */
+      padding: 0 20px;
+      flex: 0 0 auto;         /* fixed height based on content */
     }
     .right-side .box {
-      width: 100%;               /* fill the grid cell */
-      aspect-ratio: 1 / 1;       /* perfect square */
+      width: 100%;             /* fills grid cell */
+      aspect-ratio: 1 / 1;     /* perfect square */
       border: 2px solid #666;
-      font-size: clamp(16px, 4vw, 22px);
+      font-size: clamp(16px,4vw,22px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -139,15 +138,20 @@
       user-select: none;
     }
     #ops label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-    #ops input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    #ops input[type="checkbox"] { width:18px; height:18px; cursor:pointer; }
 
-    /* ----- Feedback image (shows under grid) -------------------------- */
+    /* ----- Feedback image (overlay, absolute) ------------------------- */
     #feedback-img {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
       display: none;
-      max-width: 60%;            /* keep inside viewport */
+      max-width: 60%;
       height: auto;
       user-select: none;
-      flex: 0 0 auto;
+      pointer-events: none;
+      z-index: 10;
     }
 
     /* ----- Very small screens tweaks ---------------------------------- */
@@ -202,10 +206,8 @@
     const feedbackImg= document.getElementById('feedback-img');
     const newBtn     = document.getElementById('new-btn');
 
-    // Védelmi kérdés oldal elhagyásakor
     window.addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = ''; });
 
-    // --- Helpers -------------------------------------------------------
     const getTimeLimit = lvl => Math.max(5000, 20000 - (lvl - 1) * 2000);
     const updateScoreBar = () => { scoreBar.style.width = (score / 10) * 100 + '%'; };
     const getAllowedOps = () => { const ops=[]; if(addCb.checked) ops.push('+'); if(subCb.checked) ops.push('-'); return ops.length?ops:['+']; };
@@ -225,7 +227,6 @@
       return div;
     };
 
-    // --- Render a new task -------------------------------------------
     function render(){
       clearTimeout(timerId);
       const timeLimit=getTimeLimit(level);
@@ -264,12 +265,11 @@
       const resultBox=document.getElementById('result-box');
       const prevScore=score, prevLevel=level;
       totalCount++;
-      let levelUp=false;
       const isCorrect=choice===correct;
 
       if(isCorrect){ correctCount++; score++; }
       else { score=Math.max(0,score-2); shakeScreen(); }
-      if(score>=10){ level++; score=0; levelUp=true; }
+      if(score>=10){ level++; score=0; confetti(); }
 
       updateScoreBar();
       document.querySelectorAll('.right-side .box').forEach(b=>{
@@ -279,7 +279,6 @@
         else if(val===choice) b.classList.add('wrong');
       });
 
-      // Show random feedback image
       const idx=Math.floor(Math.random()*10);
       feedbackImg.src=isCorrect?`assets/happy${idx}.png`:`assets/sad${idx}.png`;
       feedbackImg.style.display='block';
@@ -292,8 +291,6 @@
       if(level!==prevLevel) animateValue(levelEl,level-prevLevel);
       scoreEl.textContent=score;
       levelEl.textContent=level;
-
-      if(levelUp) confetti();
     }
 
     newBtn.addEventListener('click',render);
