@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="version" content="33">
+  <meta name="version" content="34">
   <title>Matekkvíz 0–20</title>
   <style>
     /* ----- Reset & base ---------------------------------------------- */
@@ -17,17 +17,17 @@
       align-items: center;
     }
 
-    /* ----- Shake animation (wrong answer) ----------------------------- */
+    /* ----- Shake animation ------------------------------------------- */
     body.shake { animation: shake 0.4s; }
     @keyframes shake {
-      0%   { transform: translateX(0); }
-      25%  { transform: translateX(-6px); }
-      50%  { transform: translateX(6px); }
-      75%  { transform: translateX(-6px); }
-      100% { transform: translateX(0); }
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      50% { transform: translateX(6px); }
+      75% { transform: translateX(-6px); }
+      100%{ transform: translateX(0); }
     }
 
-    /* ----- Top controls ------------------------------------------------ */
+    /* ----- Control bar ------------------------------------------------ */
     #controls {
       width: 100%;
       max-width: 600px;
@@ -36,7 +36,7 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
-      flex: 0 0 auto; /* fixed height */
+      flex: 0 0 auto;
     }
     #control-row {
       display: flex;
@@ -53,7 +53,7 @@
       display: inline-block;
     }
     .highlight.animated-up   { transform: scale(3.6); font-weight: bold;   color: #4caf50; }
-    .highlight.animated-down { transform: scale(3.6); font-weight: normal; color: #f44336; background:pink; box-shadow: 0 0 12px 12px pink; }
+    .highlight.animated-down { transform: scale(3.6); font-weight: normal; color: #f44336; background:pink; box-shadow:0 0 12px 12px pink; }
 
     #score-bar-container,
     #timer-bar-container {
@@ -63,36 +63,37 @@
       overflow: hidden;
       position: relative;
     }
-    #score-bar  { height: 100%; background:#4caf50; width:0%;  transition: width 0.2s; }
-    #timer-bar  { height: 100%; background:#66aaff; width:100%; transition: width linear; }
+    #score-bar { height:100%; background:#4caf50; width:0%; transition: width 0.2s; }
+    #timer-bar { height:100%; background:#66aaff; width:100%; transition: width linear; }
 
-    /* ----- Main (quiz) container -------------------------------------- */
+    /* ----- Main container -------------------------------------------- */
     .container {
-      flex: 1 1 auto;           /* takes remaining height */
+      flex: 1 1 auto;
       width: 100%;
       max-width: 600px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;  /* keep grid centered vertically */
-      position: relative;       /* for feedback overlay */
+      justify-content: flex-start; /* START right below status bar */
+      padding-top: 10px;           /* gap under stats */
+      padding-bottom: 120px;       /* space so overlay img won't cover grid */
+      position: relative;          /* for feedback overlay */
     }
 
-    /* ----- Left side (equation) --------------------------------------- */
+    /* ----- Equation row ---------------------------------------------- */
     .left-side {
       display: flex;
       align-items: center;
       gap: 12px;
       font-size: clamp(28px,7.5vw,36px);
       font-weight: bold;
-      flex-wrap: wrap; /* prevent overflow on very narrow devices */
+      flex-wrap: wrap;
       justify-content: center;
-      flex: 0 0 auto;
       margin-bottom: 10px;
     }
     .left-side .box {
       width: clamp(50px,13vw,80px);
-      aspect-ratio: 1 / 1;
+      aspect-ratio: 1/1;
       border: 3px solid #333;
       display: flex;
       align-items: center;
@@ -101,46 +102,40 @@
     .left-side .op,
     .left-side .eq { user-select: none; font-size: inherit; }
 
-    /* ----- Right side (answer grid) ----------------------------------- */
+    /* ----- Answer grid ----------------------------------------------- */
     .right-side {
       display: grid;
-      grid-template-columns: repeat(7, 1fr); /* always 7 columns */
-      grid-template-rows: repeat(3, 1fr);    /* always 3 rows    */
+      grid-template-columns: repeat(7, 1fr);
+      grid-template-rows: repeat(3, 1fr);
       gap: 6px;
       width: 100%;
       padding: 0 20px;
-      flex: 0 0 auto;         /* fixed height based on content */
+      flex: 0 0 auto;
     }
     .right-side .box {
-      width: 100%;             /* fills grid cell */
-      aspect-ratio: 1 / 1;     /* perfect square */
+      width: 100%;
+      aspect-ratio: 1/1;
       border: 2px solid #666;
       font-size: clamp(16px,4vw,22px);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: background-color 0.2s, border-color 0.2s;
       user-select: none;
+      transition: background-color 0.2s, border-color 0.2s;
     }
     .right-side .box:not(.disabled):hover { background:#e0f0ff; border-color:#66aaff; }
-    .right-side .box.disabled          { pointer-events:none; }
+    .right-side .box.disabled { pointer-events:none; }
 
     .box.correct { background:#c8e6c9; border-color:#256029; color:#256029; }
     .box.wrong   { background:#ffcdd2; border-color:#a12828; color:#a12828; }
 
-    /* ----- Operation checkboxes --------------------------------------- */
-    #ops {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 18px;
-      user-select: none;
-    }
-    #ops label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    /* ----- Operation checkboxes -------------------------------------- */
+    #ops { display:flex; align-items:center; gap:8px; font-size:18px; user-select:none; }
+    #ops label { display:flex; align-items:center; gap:4px; cursor:pointer; }
     #ops input[type="checkbox"] { width:18px; height:18px; cursor:pointer; }
 
-    /* ----- Feedback image (overlay, absolute) ------------------------- */
+    /* ----- Feedback image overlay ------------------------------------ */
     #feedback-img {
       position: absolute;
       bottom: 8px;
@@ -154,10 +149,10 @@
       z-index: 10;
     }
 
-    /* ----- Very small screens tweaks ---------------------------------- */
+    /* ----- Very small screen tweaks ---------------------------------- */
     @media (max-width: 360px) {
-      #controls { padding: 8px 10px; }
-      .right-side { gap: 4px; padding: 0 12px; }
+      #controls { padding:8px 10px; }
+      .right-side { gap:4px; padding:0 12px; }
     }
   </style>
 </head>
@@ -190,102 +185,54 @@
   <!-- ---------- SCRIPTS ---------- -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script>
-    let correctCount = 0;
-    let totalCount   = 0;
-    let score        = 0;
-    let level        = 1;
-    let timerId      = null;
+    let correctCount=0,totalCount=0,score=0,level=1,timerId=null;
+    const timerBar=document.getElementById('timer-bar');
+    const scoreBar=document.getElementById('score-bar');
+    const scoreEl=document.getElementById('score');
+    const levelEl=document.getElementById('level');
+    const hitsEl=document.getElementById('hits');
+    const addCb=document.getElementById('add-cb');
+    const subCb=document.getElementById('sub-cb');
+    const feedbackImg=document.getElementById('feedback-img');
+    const newBtn=document.getElementById('new-btn');
 
-    const timerBar   = document.getElementById('timer-bar');
-    const scoreBar   = document.getElementById('score-bar');
-    const scoreEl    = document.getElementById('score');
-    const levelEl    = document.getElementById('level');
-    const hitsEl     = document.getElementById('hits');
-    const addCb      = document.getElementById('add-cb');
-    const subCb      = document.getElementById('sub-cb');
-    const feedbackImg= document.getElementById('feedback-img');
-    const newBtn     = document.getElementById('new-btn');
+    window.addEventListener('beforeunload',e=>{e.preventDefault();e.returnValue='';});
 
-    window.addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = ''; });
+    const getTimeLimit=lvl=>Math.max(5000,20000-(lvl-1)*2000);
+    const updateScoreBar=()=>{scoreBar.style.width=(score/10)*100+'%';};
+    const getAllowedOps=()=>{const ops=[];if(addCb.checked) ops.push('+'); if(subCb.checked) ops.push('-'); return ops.length?ops:['+'];};
 
-    const getTimeLimit = lvl => Math.max(5000, 20000 - (lvl - 1) * 2000);
-    const updateScoreBar = () => { scoreBar.style.width = (score / 10) * 100 + '%'; };
-    const getAllowedOps = () => { const ops=[]; if(addCb.checked) ops.push('+'); if(subCb.checked) ops.push('-'); return ops.length?ops:['+']; };
-
-    const generateProblem = () => {
-      const op = getAllowedOps()[Math.floor(Math.random()*getAllowedOps().length)];
-      let a,b,result;
-      if(op==='+') { result=Math.floor(Math.random()*21); a=Math.floor(Math.random()*(result+1)); b=result-a; }
-      else          { a=Math.floor(Math.random()*21); b=Math.floor(Math.random()*(a+1)); result=a-b; }
-      return{a,b,op,result};
-    };
-
-    const createBox = (content, extra='') => {
-      const div=document.createElement('div');
-      div.className='box'+(extra?' '+extra:'');
-      div.textContent=content;
-      return div;
-    };
+    const generateProblem=()=>{const op=getAllowedOps()[Math.floor(Math.random()*getAllowedOps().length)];let a,b,result;if(op==='+'){result=Math.floor(Math.random()*21);a=Math.floor(Math.random()*(result+1));b=result-a;}else{a=Math.floor(Math.random()*21);b=Math.floor(Math.random()*(a+1));result=a-b;}return{a,b,op,result};};
+    const createBox=(content,extra='')=>{const div=document.createElement('div');div.className='box'+(extra?' '+extra:'');div.textContent=content;return div;};
 
     function render(){
       clearTimeout(timerId);
       const timeLimit=getTimeLimit(level);
-      timerBar.style.transition='none'; timerBar.style.width='100%'; void timerBar.offsetWidth;
-      timerBar.style.transition=`width ${timeLimit}ms linear`; timerBar.style.width='0%';
-
-      feedbackImg.style.display='none';
-      newBtn.disabled=true;
-
+      timerBar.style.transition='none';timerBar.style.width='100%';void timerBar.offsetWidth;
+      timerBar.style.transition=`width ${timeLimit}ms linear`;timerBar.style.width='0%';
+      feedbackImg.style.display='none';newBtn.disabled=true;
       const {a,b,op,result}=generateProblem();
-      const left=document.getElementById('left-side');
-      left.innerHTML='';
-      left.appendChild(createBox(a));
-      left.appendChild(Object.assign(document.createElement('div'),{className:'op',textContent:op}));
-      left.appendChild(createBox(b));
-      left.appendChild(Object.assign(document.createElement('div'),{className:'eq',textContent:'='}));
-      const resultBox=createBox('?', 'result-box'); resultBox.id='result-box'; left.appendChild(resultBox);
-
-      const right=document.getElementById('right-side');
-      right.innerHTML='';
-      for(let i=0;i<=20;i++){
-        const box=createBox(i);
-        box.addEventListener('click',()=>{clearTimeout(timerId); stopTimerBar(); handleClick(i,result);});
-        right.appendChild(box);
-      }
-
-      timerId=setTimeout(()=>{stopTimerBar(); handleClick(null,result);},timeLimit);
+      const left=document.getElementById('left-side');left.innerHTML='';
+      left.appendChild(createBox(a));left.appendChild(Object.assign(document.createElement('div'),{className:'op',textContent:op}));left.appendChild(createBox(b));left.appendChild(Object.assign(document.createElement('div'),{className:'eq',textContent:'='}));const resultBox=createBox('?','result-box');resultBox.id='result-box';left.appendChild(resultBox);
+      const right=document.getElementById('right-side');right.innerHTML='';
+      for(let i=0;i<=20;i++){const box=createBox(i);box.addEventListener('click',()=>{clearTimeout(timerId);stopTimerBar();handleClick(i,result);});right.appendChild(box);}timerId=setTimeout(()=>{stopTimerBar();handleClick(null,result);},timeLimit);
     }
 
-    function stopTimerBar(){ const cs=getComputedStyle(timerBar); timerBar.style.transition='none'; timerBar.style.width=cs.width; }
-    function animateValue(el,dir){ const cls=dir>0?'animated-up':'animated-down'; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),400); }
-    function shakeScreen(){ document.body.classList.add('shake'); setTimeout(()=>document.body.classList.remove('shake'),400); }
+    const stopTimerBar=()=>{const cs=getComputedStyle(timerBar);timerBar.style.transition='none';timerBar.style.width=cs.width;};
+    const animateValue=(el,dir)=>{const cls=dir>0?'animated-up':'animated-down';el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),400);};
+    const shakeScreen=()=>{document.body.classList.add('shake');setTimeout(()=>document.body.classList.remove('shake'),400);};
 
     function handleClick(choice,correct){
       if(document.querySelector('.right-side .box.disabled')) return;
       const resultBox=document.getElementById('result-box');
-      const prevScore=score, prevLevel=level;
-      totalCount++;
-      const isCorrect=choice===correct;
-
-      if(isCorrect){ correctCount++; score++; }
-      else { score=Math.max(0,score-2); shakeScreen(); }
-      if(score>=10){ level++; score=0; confetti(); }
-
+      const prevScore=score,prevLevel=level;
+      totalCount++;const isCorrect=choice===correct;
+      if(isCorrect){correctCount++;score++;}else{score=Math.max(0,score-2);shakeScreen();}
+      if(score>=10){level++;score=0;confetti();}
       updateScoreBar();
-      document.querySelectorAll('.right-side .box').forEach(b=>{
-        b.classList.add('disabled');
-        const val=+b.textContent;
-        if(val===correct) b.classList.add('correct');
-        else if(val===choice) b.classList.add('wrong');
-      });
-
-      const idx=Math.floor(Math.random()*10);
-      feedbackImg.src=isCorrect?`assets/happy${idx}.png`:`assets/sad${idx}.png`;
-      feedbackImg.style.display='block';
-
-      if(resultBox) resultBox.textContent=correct;
-      newBtn.disabled=false;
-
+      document.querySelectorAll('.right-side .box').forEach(b=>{b.classList.add('disabled');const val=+b.textContent;if(val===correct)b.classList.add('correct');else if(val===choice)b.classList.add('wrong');});
+      const idx=Math.floor(Math.random()*10);feedbackImg.src=isCorrect?`assets/happy${idx}.png`:`assets/sad${idx}.png`;feedbackImg.style.display='block';
+      if(resultBox) resultBox.textContent=correct;newBtn.disabled=false;
       hitsEl.textContent=`${correctCount}\u2009/\u2009${totalCount}`;
       if(score!==prevScore) animateValue(scoreEl,score-prevScore);
       if(level!==prevLevel) animateValue(levelEl,level-prevLevel);
@@ -294,9 +241,8 @@
     }
 
     newBtn.addEventListener('click',render);
-    document.addEventListener('keydown',e=>{ if(e.code==='Space'&&!newBtn.disabled){ e.preventDefault(); newBtn.click(); } });
-
-    function enforceAtLeastOne(e){ if(!addCb.checked&&!subCb.checked){ e.target.checked=true; return; } if(newBtn.disabled) render(); }
+    document.addEventListener('keydown',e=>{if(e.code==='Space'&&!newBtn.disabled){e.preventDefault();newBtn.click();}});
+    function enforceAtLeastOne(e){if(!addCb.checked&&!subCb.checked){e.target.checked=true;return;}if(newBtn.disabled) render();}
     addCb.addEventListener('change',enforceAtLeastOne);
     subCb.addEventListener('change',enforceAtLeastOne);
   </script>
