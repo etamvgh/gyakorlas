@@ -399,7 +399,7 @@ function newWord() {
 
         const correct = result.part;
         const wrong = getWrongAnswer(correct);
-        const answers = [correct, wrong].sort(() => Math.random() - 0.5);
+        const answers = [correct, wrong].sort();
 
         optionButtons.forEach((btn, i) => {
             btn.textContent = answers[i];
