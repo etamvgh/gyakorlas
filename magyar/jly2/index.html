@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>j / ly gyakorló</title>
+
+<style>
+body {
+    margin: 0;
+    height: 100vh;
+    font-family: system-ui, Arial, sans-serif;
+    background: linear-gradient(135deg, #f0f4ff, #fefefe);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#stats {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.stat-box {
+    background: #ffffffcc;
+    padding: 12px 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+#word-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#options {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+.option-btn {
+    min-width: 140px;
+    padding: 20px 40px;
+    font-size: 1.8rem;
+    font-weight: 600;
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    background-color: #e0e6ff;
+    transition:
+        background-color 0.2s ease,
+        opacity 0.25s ease,
+        transform 0.25s ease;
+}
+
+.option-btn.fade {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.option-btn:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.correct {
+    background-color: #4caf50 !important;
+    color: white;
+}
+
+.wrong {
+    background-color: #f44336 !important;
+    color: white;
+}
+
+#word {
+    font-size: clamp(3.2rem, 9vw, 6.2rem);
+    font-weight: 800;
+    text-align: center;
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-out {
+    opacity: 0;
+    transform: scale(0.85);
+}
+
+.fade-in {
+    animation: fadeInUp 0.45s ease forwards;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#nextBtn {
+    margin: 20px;
+    padding: 18px 36px;
+    font-size: 1.2rem;
+    border: none;
+    border-radius: 14px;
+    background-color: #4a6cff;
+    color: white;
+    cursor: pointer;
+}
+
+#nextBtn:disabled {
+    background-color: #9aa8ff;
+    cursor: not-allowed;
+}
+
+.celebrate {
+    animation: pop 0.5s ease;
+}
+
+@keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+
+.shake {
+    animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    50% { transform: translateX(8px); }
+    75% { transform: translateX(-8px); }
+    100% { transform: translateX(0); }
+}
+</style>
+</head>
+
+<body>
+
+<div id="stats">
+    <div class="stat-box" id="score">Pontszám: 0 / 0</div>
+    <div class="stat-box" id="stat-j" hidden="true">j: 0 / 0</div>
+    <div class="stat-box" id="stat-ly" hidden="true">ly: 0 / 0</div>
+    <div class="stat-box" id="stat-jj" hidden="true">jj: 0 / 0</div>
+    <div class="stat-box" id="stat-lly" hidden="true">lly: 0 / 0</div>
+</div>
+
+<div id="word-container">
+    <div id="options"></div>
+    <div id="word"></div>
+</div>
+
+<button id="nextBtn" disabled>Következő szó</button>
+
+<script>
+const words = [
+    "akadály","bagoly","bója","bolygó","élőhely","elrejt","folyó","furulya",
+    "gólya","harkály","hely","ibolya","ilyen","játék","jég","jel","joghurt",
+    "kastély","király","kölyök","lyuk","lyukas","melyik","milyen","muszáj",
+    "olaj","olyan","osztály","papagáj","pehely","pulyka","rejtőzés","sajt",
+    "talaj","tej","tolvaj","újság","vaj","zaj"
+];
+
+const patterns = ["lly", "jj", "ly", "j"];
+const MAX_HISTORY = 10;
+const history = [];
+
+const stats = {
+    total: { correct: 0, all: 0 },
+    j: { correct: 0, all: 0 },
+    ly: { correct: 0, all: 0 },
+    jj: { correct: 0, all: 0 },
+    lly: { correct: 0, all: 0 }
+};
+
+let current = null;
+let answered = false;
+
+const wordEl = document.getElementById("word");
+const optionsEl = document.getElementById("options");
+const nextBtn = document.getElementById("nextBtn");
+
+function getWrongAnswer(p) {
+    return p === "j" ? "ly" :
+           p === "ly" ? "j" :
+           p === "jj" ? "lly" : "jj";
+}
+
+function prepareWord(word) {
+    let matches = [];
+    patterns.forEach(p => {
+        let idx = word.indexOf(p);
+        while (idx !== -1) {
+            matches.push({ part: p, index: idx });
+            idx = word.indexOf(p, idx + 1);
+        }
+    });
+    return matches.length
+        ? matches[Math.floor(Math.random() * matches.length)]
+        : null;
+}
+
+function getRandomWord() {
+    let available = words.filter(w => !history.includes(w));
+    if (available.length === 0) {
+        history.length = 0;
+        available = [...words];
+    }
+    return available[Math.floor(Math.random() * available.length)];
+}
+
+function updateStatsUI() {
+    document.getElementById("score").textContent =
+        `Pontszám: ${stats.total.correct} / ${stats.total.all}`;
+    ["j","ly","jj","lly"].forEach(p => {
+        document.getElementById(`stat-${p}`).textContent =
+            `${p}: ${stats[p].correct} / ${stats[p].all}`;
+    });
+}
+
+const optionButtons = [document.createElement("button"), document.createElement("button")];
+optionButtons.forEach(btn => {
+    btn.className = "option-btn";
+    optionsEl.appendChild(btn);
+});
+
+function newWord() {
+    nextBtn.disabled = true;
+    answered = false;
+
+    optionButtons.forEach(b => {
+        b.disabled = false;
+        b.classList.remove("correct", "wrong");
+        b.classList.add("fade");
+    });
+
+    wordEl.classList.remove("fade-in");
+    wordEl.classList.add("fade-out");
+
+    setTimeout(() => {
+        let word, result;
+        do {
+            word = getRandomWord();
+            result = prepareWord(word);
+        } while (!result);
+
+        history.push(word);
+        if (history.length > MAX_HISTORY) history.shift();
+
+        current = { word, ...result };
+
+        wordEl.textContent =
+            word.slice(0, result.index) +
+            "_".repeat(result.part.length) +
+            word.slice(result.index + result.part.length);
+
+        const correct = result.part;
+        const wrong = getWrongAnswer(correct);
+        const answers = [correct, wrong].sort(() => Math.random() - 0.5);
+
+        optionButtons.forEach((btn, i) => {
+            btn.textContent = answers[i];
+            btn.onclick = () => answer(btn, btn.textContent === correct);
+        });
+
+        wordEl.classList.remove("fade-out");
+        void wordEl.offsetWidth;
+        wordEl.classList.add("fade-in");
+
+        optionButtons.forEach(b => b.classList.remove("fade"));
+    }, 300);
+}
+
+function answer(button, isCorrect) {
+    if (answered) return;
+    answered = true;
+
+    optionButtons.forEach(b => b.disabled = true);
+    nextBtn.disabled = false;
+
+    stats.total.all++;
+    stats[current.part].all++;
+
+    // Válasz után mindig teljes szó látszik
+    wordEl.textContent = current.word;
+
+    if (isCorrect) {
+        stats.total.correct++;
+        stats[current.part].correct++;
+        button.classList.add("correct");
+
+        // Jutalom animáció
+        wordEl.classList.remove("fade-in");
+        void wordEl.offsetWidth;
+        wordEl.classList.add("celebrate");
+        setTimeout(() => wordEl.classList.remove("celebrate"), 500);
+
+    } else {
+        button.classList.add("wrong");
+        optionButtons.forEach(b => {
+            if (b.textContent === current.part) b.classList.add("correct");
+        });
+
+        // ❌ Rázkódás, **semmi fade-in, semmi új szó animáció**
+        wordEl.classList.remove("fade-in");
+        void wordEl.offsetWidth;
+        wordEl.classList.add("shake");
+        setTimeout(() => wordEl.classList.remove("shake"), 400);
+    }
+
+    updateStatsUI();
+}
+
+// Csak a gomb nyomására jön a következő szó
+nextBtn.onclick = newWord;
+
+updateStatsUI();
+newWord();
+</script>
+
+</body>
+</html>
