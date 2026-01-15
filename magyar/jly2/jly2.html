@@ -394,7 +394,7 @@ function newWord() {
 
         wordEl.textContent =
             word.slice(0, result.index) +
-            "_".repeat(result.part.length) +
+            "__" +
             word.slice(result.index + result.part.length);
 
         const correct = result.part;
