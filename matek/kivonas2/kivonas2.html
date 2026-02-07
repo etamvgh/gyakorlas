@@ -81,6 +81,10 @@
             75% { transform: translateX(-8px); }
             100% { transform: translateX(0); }
         }
+        @keyframes newProblem {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -99,6 +103,10 @@
             const n2 = Math.floor(Math.random() * 90) + 10;
             const larger = Math.max(n1, n2);
             const smaller = Math.min(n1, n2);
+
+            const topEl = document.querySelector('.top');
+            topEl.style.animation = 'newProblem 0.5s ease';
+            setTimeout(() => topEl.style.animation = '', 500);
 
             document.getElementById('num1').textContent = larger;
             document.getElementById('num2').textContent = smaller;
