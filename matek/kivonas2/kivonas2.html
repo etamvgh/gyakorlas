@@ -85,9 +85,29 @@
             0% { opacity: 0; transform: scale(0.8); }
             100% { opacity: 1; transform: scale(1); }
         }
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stats div {
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+        }
     </style>
 </head>
 <body>
+    <div class="stats">
+        <div>Helyes válasz: <span id="correct">0</span></div>
+        <div>Rossz válasz: <span id="wrong">0</span></div>
+        <div>Eredmény: <span id="accuracy">0%</span></div>
+    </div>
     <div class="top">
         <span id="num1"></span> - <span id="num2"></span> = <span id="result">__</span>
     </div>
@@ -97,6 +117,16 @@
     <script>
         let answer = '';
         let correctAnswer;
+        let correct = 0;
+        let wrong = 0;
+
+        function updateStats() {
+            document.getElementById('correct').textContent = correct;
+            document.getElementById('wrong').textContent = wrong;
+            const total = correct + wrong;
+            const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+            document.getElementById('accuracy').textContent = accuracy + '%';
+        }
 
         function newProblem() {
             const n1 = Math.floor(Math.random() * 90) + 10;
@@ -160,6 +190,8 @@
             if (!answer) return;
             const resultEl = document.getElementById('result');
             if (parseInt(answer) === correctAnswer) {
+                correct++;
+                updateStats();
                 resultEl.style.color = 'green';
                 resultEl.style.animation = 'correct 0.5s ease';
                 setTimeout(() => {
@@ -167,6 +199,8 @@
                     newProblem();
                 }, 1000);
             } else {
+                wrong++;
+                updateStats();
                 resultEl.style.color = 'red';
                 resultEl.style.animation = 'wrong 0.4s ease';
                 setTimeout(() => {
