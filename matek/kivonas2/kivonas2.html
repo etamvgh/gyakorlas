@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subtraction Practice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+        }
+        .top {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 80px;
+            font-weight: bold;
+            gap: 30px;
+        }
+        .bottom {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+        }
+        .digit-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .digit-box {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            background: white;
+            border-radius: 5px;
+        }
+        .digit-box:hover {
+            background: #e0e0e0;
+        }
+        .action-box {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 5px;
+        }
+        .action-box:hover {
+            background: #ccc;
+        }
+        #result {
+            font-size: 60px;
+            color: #666;
+        }
+        @keyframes correct {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        @keyframes wrong {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            50% { transform: translateX(8px); }
+            75% { transform: translateX(-8px); }
+            100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <span id="num1"></span> - <span id="num2"></span> = <span id="result">__</span>
+    </div>
+    <div class="bottom">
+        <div class="digit-grid" id="digits"></div>
+    </div>
+    <script>
+        let answer = '';
+        let correctAnswer;
+
+        function newProblem() {
+            const n1 = Math.floor(Math.random() * 90) + 10;
+            const n2 = Math.floor(Math.random() * 90) + 10;
+            const larger = Math.max(n1, n2);
+            const smaller = Math.min(n1, n2);
+
+            document.getElementById('num1').textContent = larger;
+            document.getElementById('num2').textContent = smaller;
+            correctAnswer = larger - smaller;
+            answer = '';
+            document.getElementById('result').textContent = '__';
+            document.getElementById('result').style.color = '#666';
+        }
+
+        function createDigitBoxes() {
+            const grid = document.getElementById('digits');
+            for (let i = 1; i <= 9; i++) {
+                const box = document.createElement('div');
+                box.className = 'digit-box';
+                box.textContent = i;
+                box.onclick = () => selectDigit(i);
+                grid.appendChild(box);
+            }
+            const box0 = document.createElement('div');
+            box0.className = 'digit-box';
+            box0.textContent = 0;
+            box0.onclick = () => selectDigit(0);
+            grid.appendChild(box0);
+
+            const delBox = document.createElement('div');
+            delBox.className = 'action-box';
+            delBox.textContent = '←';
+            delBox.onclick = deleteDigit;
+            grid.appendChild(delBox);
+
+            const acceptBox = document.createElement('div');
+            acceptBox.className = 'action-box';
+            acceptBox.textContent = '✓';
+            acceptBox.onclick = checkAnswer;
+            grid.appendChild(acceptBox);
+        }
+
+        function selectDigit(digit) {
+            if (answer.length < 2) {
+                answer += digit.toString();
+                document.getElementById('result').textContent = answer || '__';
+            }
+        }
+
+        function deleteDigit() {
+            answer = answer.slice(0, -1);
+            document.getElementById('result').textContent = answer || '__';
+        }
+
+        function checkAnswer() {
+            if (!answer) return;
+            const resultEl = document.getElementById('result');
+            if (parseInt(answer) === correctAnswer) {
+                resultEl.style.color = 'green';
+                resultEl.style.animation = 'correct 0.5s ease';
+                setTimeout(() => {
+                    resultEl.style.animation = '';
+                    newProblem();
+                }, 1000);
+            } else {
+                resultEl.style.color = 'red';
+                resultEl.style.animation = 'wrong 0.4s ease';
+                setTimeout(() => {
+                    resultEl.style.animation = '';
+                    answer = '';
+                    resultEl.textContent = '__';
+                    resultEl.style.color = '#666';
+                }, 2000);
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '0' && e.key <= '9') {
+                selectDigit(parseInt(e.key));
+            } else if (e.key === 'Backspace') {
+                deleteDigit();
+            } else if (e.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        createDigitBoxes();
+        newProblem();
+    </script>
+</body>
+</html>
