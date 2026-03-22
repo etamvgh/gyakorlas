@@ -208,7 +208,7 @@
         }
 
         function selectDigit(digit) {
-            if (answer.length < 2) {
+            if (answer.length < 2 || (correctAnswer == 100 && answer.length < 3)) {
                 answer += digit.toString();
                 document.getElementById('result').textContent = answer || '__';
             }
