@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Egyjegyű számok szorzása</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+            touch-action: manipulation;
+        }
+        .top {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 80px;
+            font-weight: bold;
+            gap: 30px;
+        }
+        .bottom {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            padding-bottom: 20px;
+        }
+        .digit-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .digit-box {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            background: white;
+            border-radius: 5px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .digit-box:hover {
+            background: #e0e0e0;
+        }
+        .digit-box:active {
+            background: #d0d0d0;
+        }
+        .action-box {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 5px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .action-box:hover {
+            background: #ccc;
+        }
+        .action-box:active {
+            background: #bbb;
+        }
+        #result {
+            font-size: 60px;
+            color: #666;
+        }
+        @keyframes correct {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.8) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        @keyframes wrong {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            50% { transform: translateX(8px); }
+            75% { transform: translateX(-8px); }
+            100% { transform: translateX(0); }
+        }
+        @keyframes newProblem {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stats div {
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+        }
+        @media (max-width: 600px) {
+            .top {
+                font-size: 50px;
+                gap: 15px;
+            }
+            .bottom {
+                padding-bottom: 30px;
+            }
+            .stats {
+                font-size: 14px;
+                padding: 10px;
+                top: 10px;
+                right: 10px;
+            }
+            .stats div {
+                gap: 20px;
+            }
+            .digit-box, .action-box {
+                width: 70px;
+                height: 70px;
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="stats">
+        <div>Helyes válasz: <span id="correct">0</span></div>
+        <div>Rossz válasz: <span id="wrong">0</span></div>
+        <div>Eredmény: <span id="accuracy">0%</span></div>
+    </div>
+    <div class="top">
+        <span id="num1"></span> &middot; <span id="num2"></span> = <span id="result">__</span>
+    </div>
+    <div class="bottom">
+        <div class="digit-grid" id="digits"></div>
+    </div>
+    <script>
+        let answer = '';
+        let correctAnswer;
+        let correct = 0;
+        let wrong = 0;
+
+        function updateStats() {
+            document.getElementById('correct').textContent = correct;
+            document.getElementById('wrong').textContent = wrong;
+            const total = correct + wrong;
+            const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+            document.getElementById('accuracy').textContent = accuracy + '%';
+        }
+
+        function newProblem() {
+            const n1 = Math.floor(Math.random() * 10) + 1;
+            const n2 = Math.floor(Math.random() * 10) + 1;
+
+            const topEl = document.querySelector('.top');
+            topEl.style.animation = 'newProblem 0.5s ease';
+            setTimeout(() => topEl.style.animation = '', 500);
+
+            document.getElementById('num1').textContent = n1;
+            document.getElementById('num2').textContent = n2;
+            correctAnswer = n1 * n2;
+            answer = '';
+            document.getElementById('result').textContent = '__';
+            document.getElementById('result').style.color = '#666';
+        }
+
+        function createDigitBoxes() {
+            const grid = document.getElementById('digits');
+            for (let i = 1; i <= 9; i++) {
+                const box = document.createElement('div');
+                box.className = 'digit-box';
+                box.textContent = i;
+                box.onclick = () => selectDigit(i);
+                grid.appendChild(box);
+            }
+            const box0 = document.createElement('div');
+            box0.className = 'digit-box';
+            box0.textContent = 0;
+            box0.onclick = () => selectDigit(0);
+            grid.appendChild(box0);
+
+            const delBox = document.createElement('div');
+            delBox.className = 'action-box';
+            delBox.textContent = '←';
+            delBox.onclick = deleteDigit;
+            grid.appendChild(delBox);
+
+            const acceptBox = document.createElement('div');
+            acceptBox.className = 'action-box';
+            acceptBox.textContent = '✓';
+            acceptBox.onclick = checkAnswer;
+            grid.appendChild(acceptBox);
+        }
+
+        function selectDigit(digit) {
+            if (answer.length < 2) {
+                answer += digit.toString();
+                document.getElementById('result').textContent = answer || '__';
+            }
+        }
+
+        function deleteDigit() {
+            answer = answer.slice(0, -1);
+            document.getElementById('result').textContent = answer || '__';
+        }
+
+        function checkAnswer() {
+            if (!answer) return;
+            const resultEl = document.getElementById('result');
+            if (parseInt(answer) === correctAnswer) {
+                correct++;
+                updateStats();
+                resultEl.style.color = 'green';
+                resultEl.style.animation = 'correct 0.5s ease';
+                setTimeout(() => {
+                    resultEl.style.animation = '';
+                    newProblem();
+                }, 1000);
+            } else {
+                wrong++;
+                updateStats();
+                resultEl.style.color = 'red';
+                resultEl.style.animation = 'wrong 0.4s ease';
+                setTimeout(() => {
+                    resultEl.style.animation = '';
+                    answer = '';
+                    resultEl.textContent = '__';
+                    resultEl.style.color = '#666';
+                }, 2000);
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '0' && e.key <= '9') {
+                selectDigit(parseInt(e.key));
+            } else if (e.key === 'Backspace') {
+                deleteDigit();
+            } else if (e.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        createDigitBoxes();
+        newProblem();
+    </script>
+</body>
+</html>
