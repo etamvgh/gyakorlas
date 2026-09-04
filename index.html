@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gyakorló</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: system-ui, Arial, sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f0f4ff, #fefefe);
+        display: flex;
+        flex-direction: column;
+        touch-action: manipulation;
+    }
+    .screen {
+        flex: 1;
+        display: none;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+    .screen.active { display: flex; }
+
+    /* ---------- Start screen ---------- */
+    #start-screen {
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .card {
+        background: #ffffffdd;
+        padding: 30px 34px;
+        border-radius: 18px;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+        width: 100%;
+        max-width: 460px;
+    }
+    .card h1 {
+        margin: 0 0 6px;
+        font-size: 2rem;
+        text-align: center;
+    }
+    .card p.sub {
+        margin: 0 0 22px;
+        text-align: center;
+        color: #666;
+    }
+    .type-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .type-row label {
+        font-size: 1.15rem;
+        font-weight: 600;
+    }
+    .type-row .op {
+        color: #888;
+        font-weight: 400;
+        font-size: 0.95rem;
+        margin-left: 6px;
+    }
+    .type-row input {
+        width: 80px;
+        padding: 10px;
+        font-size: 1.2rem;
+        text-align: center;
+        border: 2px solid #ccd;
+        border-radius: 10px;
+    }
+    .total-line {
+        display: flex;
+        justify-content: space-between;
+        margin: 20px 0 16px;
+        font-size: 1.2rem;
+        font-weight: 700;
+    }
+
+    /* ---- global +/- stepper ---- */
+    .global-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 0 4px;
+    }
+    .global-row .glabel {
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+    .stepper { display: flex; gap: 10px; }
+    .step-btn {
+        width: 52px;
+        height: 46px;
+        font-size: 1.6rem;
+        font-weight: 700;
+        line-height: 1;
+        border: 2px solid #ccd;
+        border-radius: 10px;
+        background: #eef1ff;
+        color: #33406b;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .step-btn:hover { background: #dde3ff; }
+    .step-btn:active { background: #ccd5ff; transform: scale(0.96); }
+
+    /* ---- mix toggle switch ---- */
+    .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 0 2px;
+        border-top: 1px solid #eee;
+        margin-top: 8px;
+    }
+    .switch-text .switch-label {
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+    .switch-text .switch-hint {
+        display: block;
+        font-size: 0.85rem;
+        color: #777;
+        margin-top: 2px;
+    }
+    .switch {
+        position: relative;
+        flex: 0 0 auto;
+        width: 58px;
+        height: 32px;
+    }
+    .switch input {
+        position: absolute;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        cursor: pointer;
+    }
+    .slider {
+        position: absolute;
+        inset: 0;
+        background: #c8ccd8;
+        border-radius: 32px;
+        transition: background 0.2s ease;
+        pointer-events: none;
+    }
+    .slider::before {
+        content: "";
+        position: absolute;
+        width: 26px;
+        height: 26px;
+        left: 3px;
+        top: 3px;
+        background: white;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease;
+    }
+    .switch input:checked + .slider { background: #4a6cff; }
+    .switch input:checked + .slider::before { transform: translateX(26px); }
+    .switch input:focus-visible + .slider {
+        outline: 3px solid #94a6ff;
+        outline-offset: 2px;
+    }
+    .btn {
+        display: block;
+        width: 100%;
+        padding: 16px;
+        font-size: 1.3rem;
+        font-weight: 700;
+        border: none;
+        border-radius: 14px;
+        background: #4a6cff;
+        color: white;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .btn:hover { background: #3a5cf0; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { background: #9aa8ff; cursor: not-allowed; }
+
+    /* ---------- Exercise screen ---------- */
+    #exercise-screen { position: relative; }
+    #hud {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 20px;
+        font-size: 1.1rem;
+        background: #ffffffcc;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    #hud .type-name { font-weight: 700; }
+    #hud .progress { color: #555; }
+    #stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    /* Math UI */
+    .top {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 80px;
+        font-weight: bold;
+        gap: 30px;
+    }
+    .bottom {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        justify-content: center;
+        align-items: center;
+        padding-bottom: 20px;
+    }
+    .digit-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+    .digit-box {
+        width: 60px; height: 60px;
+        border: 2px solid #333;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 30px; cursor: pointer;
+        background: white; border-radius: 5px;
+        user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .digit-box:hover { background: #e0e0e0; }
+    .digit-box:active { background: #d0d0d0; }
+    .action-box {
+        width: 60px; height: 60px;
+        border: 2px solid #333;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 24px; cursor: pointer;
+        background: #ddd; border-radius: 5px;
+        user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .action-box:hover { background: #ccc; }
+    .action-box:active { background: #bbb; }
+    #result { font-size: 60px; color: #666; }
+
+    @keyframes correct {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.8) rotate(-5deg); }
+        100% { transform: scale(1) rotate(0deg); }
+    }
+    @keyframes wrong {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-8px); }
+        50% { transform: translateX(8px); }
+        75% { transform: translateX(-8px); }
+        100% { transform: translateX(0); }
+    }
+    @keyframes newProblem {
+        0% { opacity: 0; transform: scale(0.8); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* jly UI */
+    #word-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    #options { display: flex; gap: 24px; margin-bottom: 30px; }
+    .option-btn {
+        min-width: 140px;
+        padding: 20px 40px;
+        font-size: 1.8rem;
+        font-weight: 600;
+        border-radius: 16px;
+        border: none;
+        cursor: pointer;
+        background-color: #e0e6ff;
+        transition: background-color 0.2s ease, opacity 0.25s ease, transform 0.25s ease;
+    }
+    .option-btn.fade { opacity: 0; transform: translateY(10px); }
+    .option-btn:disabled { opacity: 0.7; cursor: default; }
+    .option-btn.correct { background-color: #4caf50 !important; color: white; }
+    .option-btn.wrong { background-color: #f44336 !important; color: white; }
+    #word {
+        font-size: clamp(3.2rem, 9vw, 6.2rem);
+        font-weight: 800;
+        text-align: center;
+        opacity: 1; transform: scale(1);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    #word.fade-out { opacity: 0; transform: scale(0.85); }
+    #word.fade-in { animation: fadeInUp 0.45s ease forwards; }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px) scale(0.9); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #word.celebrate { animation: pop 0.5s ease; }
+    @keyframes pop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.3) rotate(-5deg); }
+        100% { transform: scale(1) rotate(0deg); }
+    }
+    #word.shake { animation: shake 0.4s ease; }
+    @keyframes shake {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-8px); }
+        50% { transform: translateX(8px); }
+        75% { transform: translateX(-8px); }
+        100% { transform: translateX(0); }
+    }
+
+    /* ---------- Score screen ---------- */
+    #score-screen { align-items: center; justify-content: center; padding: 20px; }
+    .score-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0 22px;
+        font-size: 1.1rem;
+    }
+    .score-table th, .score-table td {
+        padding: 12px 10px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+    }
+    .score-table td.num, .score-table th.num { text-align: right; }
+    .score-table tr.total-row td {
+        font-weight: 800;
+        border-top: 2px solid #333;
+        border-bottom: none;
+    }
+    .pct-good { color: #2e9e44; font-weight: 700; }
+    .pct-mid  { color: #c78a00; font-weight: 700; }
+    .pct-bad  { color: #d63b2f; font-weight: 700; }
+
+    @media (max-width: 600px) {
+        .top { font-size: 50px; gap: 15px; }
+        .bottom { padding-bottom: 30px; }
+        .digit-box, .action-box { width: 70px; height: 70px; font-size: 32px; }
+        #options { gap: 14px; }
+        .option-btn { min-width: 110px; padding: 18px 24px; }
+    }
+</style>
+</head>
+<body>
+
+<!-- ============ START SCREEN ============ -->
+<div id="start-screen" class="screen active">
+    <div class="card">
+        <h1>Gyakorló</h1>
+        <p class="sub">Add meg, hány feladat legyen az egyes típusokból!</p>
+        <div id="type-inputs"></div>
+        <div class="global-row">
+            <span class="glabel">Mindegyik típus együtt</span>
+            <div class="stepper">
+                <button type="button" class="step-btn" id="dec-all"
+                        aria-label="Minden feladatszám csökkentése">−</button>
+                <button type="button" class="step-btn" id="inc-all"
+                        aria-label="Minden feladatszám növelése">+</button>
+            </div>
+        </div>
+        <div class="switch-row">
+            <span class="switch-text">
+                <label class="switch-label" for="mix-toggle">Típusok keverése</label>
+                <span class="switch-hint" id="mix-hint">Kikapcsolva: típusonként egymás után</span>
+            </span>
+            <span class="switch">
+                <input type="checkbox" id="mix-toggle" aria-describedby="mix-hint">
+                <span class="slider"></span>
+            </span>
+        </div>
+        <div class="total-line">
+            <span>Összesen:</span>
+            <span id="total-count">0</span>
+        </div>
+        <button id="start-btn" class="btn">Kezdés</button>
+    </div>
+</div>
+
+<!-- ============ EXERCISE SCREEN ============ -->
+<div id="exercise-screen" class="screen">
+    <div id="hud">
+        <span class="type-name" id="hud-type"></span>
+        <span class="progress" id="hud-progress"></span>
+    </div>
+    <div id="stage"></div>
+</div>
+
+<!-- ============ SCORE SCREEN ============ -->
+<div id="score-screen" class="screen">
+    <div class="card">
+        <h1>Eredmény</h1>
+        <p class="sub">Így teljesítettél feladattípusonként.</p>
+        <table class="score-table">
+            <thead>
+                <tr>
+                    <th>Típus</th>
+                    <th class="num">Helyes</th>
+                    <th class="num">Összes</th>
+                    <th class="num">%</th>
+                </tr>
+            </thead>
+            <tbody id="score-body"></tbody>
+        </table>
+        <button id="restart-btn" class="btn">Új gyakorlás</button>
+    </div>
+</div>
+
+<script>
+/* =========================================================
+   Exercise type definitions
+   ========================================================= */
+const TYPES = [
+    { id: 'osszeadas', name: 'Összeadás', op: '+', kind: 'math', gen: genOsszeadas },
+    { id: 'kivonas',   name: 'Kivonás',   op: '−', kind: 'math', gen: genKivonas },
+    { id: 'szorzas',   name: 'Szorzás',   op: '·', kind: 'math', gen: genSzorzas },
+    { id: 'osztas',    name: 'Osztás',    op: ':', kind: 'math', gen: genOsztas },
+    { id: 'jly',       name: 'j / ly',    op: '',  kind: 'jly',  gen: genJly },
+];
+
+function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+/* ---- math generators (faithful to the original exercises) ---- */
+function genOsszeadas() {
+    const larger = rnd(10, 99), smaller = rnd(10, 99);
+    const hi = Math.max(larger, smaller), lo = Math.min(larger, smaller);
+    const diff = hi - lo;
+    return { num1: diff, num2: lo, op: '+', answer: hi, maxLen: 2 };
+}
+function genKivonas() {
+    const a = rnd(10, 99), b = rnd(10, 99);
+    const hi = Math.max(a, b), lo = Math.min(a, b);
+    return { num1: hi, num2: lo, op: '−', answer: hi - lo, maxLen: 2 };
+}
+function genSzorzas() {
+    const n1 = rnd(1, 10), n2 = rnd(1, 10);
+    const ans = n1 * n2;
+    return { num1: n1, num2: n2, op: '·', answer: ans, maxLen: ans === 100 ? 3 : 2 };
+}
+function genOsztas() {
+    const n1 = rnd(1, 10), n2 = rnd(1, 10);
+    return { num1: n1 * n2, num2: n1, op: ':', answer: n2, maxLen: 2 };
+}
+
+/* ---- jly generator (faithful to the original exercise) ---- */
+const jlyWords = ["ajak","ajándék","ajánl","ajtó","akadály","apály","aszály","bagoly","bájos","bélyeg","bivaly","bögöly","bója","boly","bolygó","bolyong","borbély","borjú","borzadály","csermely","csigolya","csuklya","dagály","datolya","éj","éjjel","éjszaka","élőhely","elrejt","engedély","erkély","fahéj","fej","felejt","férj","fogoly","folyó","folyosó","folyton","fúj","furulya","gally","gereblye","Gergely","gólya","golyó","gombolyag","gulyásleves","gyűjt","haj","hajlik","Hajnalka","hajó","harkály","héj","hely","helyett","helyjegy","homály","homályos","hömpölyög","hüvelykujj","ibolya","Ibolya","íj","ilyen","imbolyog","János","jár","jármű","játék","jég","jegy","jel","joghurt","jön","József","Judit","jutalom","kajak","kályha","kalyiba","Károly","karvaly","kastély","keselyű","kihajló","király","kölyök","komoly","korcsolya","kristály","kulcslyuk","lajhár","Lajos","lyuk","lyukas","máj","majom","mély","mélyén","melyik","Mihály","milyen","moly","mosoly","mosolyog","muszáj","nápolyi","némely","olaj","olyan","Orsolya","osztály","pálya","papagáj","pehely","pelyhes","petrezselyem","pikkely","pisztoly","pocsolya","pólya","pulyka","rejtekhely","rejtély","rejtőzés","sajt","sajtlyuk","segély","sekély","sirály","sólyom","süllyed","súly","súlyzó","szabály","száj","szegély","székelykáposzta","személy","talaj","tarsoly","tartály","tégely","tej","tejbegríz","tejföl","tejszín","tekintély","terebélyes","tojás","tojó","tolvaj","tuja","új","ujj","újra","újság","ünnepély","uszály","vaj","vályú","varjú","veszély","viszály","vízfolyás","zaj","zsálya","zsámoly","zsivaj"];
+const jlyPatterns = ["lly", "jj", "ly", "j"];
+const jlyHistory = [];
+const JLY_MAX_HISTORY = 10;
+
+function jlyWrong(p) {
+    return p === "j" ? "ly" : p === "ly" ? "j" : p === "jj" ? "lly" : "jj";
+}
+function jlyPrepare(word) {
+    const matches = [];
+    jlyPatterns.forEach(p => {
+        let idx = word.indexOf(p);
+        while (idx !== -1) {
+            if (p === "j" && (word.charAt(idx - 1) === "j" || word.charAt(idx + 1) === "j")) {
+            } else if (p === "ly" && word.charAt(idx - 1) === "l") {
+            } else {
+                matches.push({ part: p, index: idx });
+            }
+            idx = word.indexOf(p, idx + 1);
+        }
+    });
+    return matches.length ? matches[Math.floor(Math.random() * matches.length)] : null;
+}
+function jlyRandomWord() {
+    let available = jlyWords.filter(w => !jlyHistory.includes(w));
+    if (available.length === 0) { jlyHistory.length = 0; available = [...jlyWords]; }
+    return available[Math.floor(Math.random() * available.length)];
+}
+function genJly() {
+    let word, result;
+    do {
+        word = jlyRandomWord();
+        result = jlyPrepare(word);
+    } while (!result);
+    jlyHistory.push(word);
+    if (jlyHistory.length > JLY_MAX_HISTORY) jlyHistory.shift();
+    return { word, part: result.part, index: result.index };
+}
+
+/* =========================================================
+   Session state
+   ========================================================= */
+let queue = [];          // array of type objects
+let currentIndex = 0;    // 0-based index into queue
+let scores = {};         // { typeId: { correct, wrong } }
+let activeKeyHandler = null;  // math keyboard bridge
+
+const startScreen    = document.getElementById('start-screen');
+const exerciseScreen = document.getElementById('exercise-screen');
+const scoreScreen    = document.getElementById('score-screen');
+const stage          = document.getElementById('stage');
+
+/* ---- Build the start-screen inputs ---- */
+const DEFAULT_COUNT = 20;   // starting value for every exercise type
+const GLOBAL_STEP = 5;      // how much the +/- buttons change every count by
+const MAX_COUNT = 99;
+
+function buildStartInputs() {
+    const container = document.getElementById('type-inputs');
+    TYPES.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'type-row';
+        const opLabel = t.op ? ` <span class="op">(${t.op})</span>` : '';
+        row.innerHTML =
+            `<label for="count-${t.id}">${t.name}${opLabel}</label>` +
+            `<input type="number" id="count-${t.id}" min="0" max="${MAX_COUNT}" value="${DEFAULT_COUNT}">`;
+        container.appendChild(row);
+        row.querySelector('input').addEventListener('input', updateTotal);
+    });
+    updateTotal();
+}
+
+function getCount(id) {
+    const v = parseInt(document.getElementById(`count-${id}`).value, 10);
+    if (isNaN(v) || v < 0) return 0;
+    return Math.min(v, MAX_COUNT);
+}
+function setCount(id, value) {
+    document.getElementById(`count-${id}`).value =
+        Math.max(0, Math.min(MAX_COUNT, value));
+}
+/* Change every type's count by the same delta. */
+function adjustAll(delta) {
+    TYPES.forEach(t => setCount(t.id, getCount(t.id) + delta));
+    updateTotal();
+}
+function updateTotal() {
+    const total = TYPES.reduce((s, t) => s + getCount(t.id), 0);
+    document.getElementById('total-count').textContent = total;
+    document.getElementById('start-btn').disabled = total === 0;
+}
+function isMixed() {
+    return document.getElementById('mix-toggle').checked;
+}
+function updateMixHint() {
+    document.getElementById('mix-hint').textContent = isMixed()
+        ? 'Bekapcsolva: a feladatok véletlen sorrendben'
+        : 'Kikapcsolva: típusonként egymás után';
+}
+
+function showScreen(el) {
+    [startScreen, exerciseScreen, scoreScreen].forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+}
+
+/* ---- Start a session ---- */
+function startSession() {
+    queue = [];
+    scores = {};
+    TYPES.forEach(t => {
+        scores[t.id] = { correct: 0, wrong: 0 };
+        const n = getCount(t.id);
+        for (let i = 0; i < n; i++) queue.push(t);
+    });
+    if (queue.length === 0) return;
+
+    // Mixed mode: random order across all types. Otherwise the queue stays
+    // grouped by type, in the order the types are listed on the start screen.
+    if (isMixed()) {
+        for (let i = queue.length - 1; i > 0; i--) {   // Fisher-Yates shuffle
+            const j = Math.floor(Math.random() * (i + 1));
+            [queue[i], queue[j]] = [queue[j], queue[i]];
+        }
+    }
+
+    currentIndex = 0;
+    showScreen(exerciseScreen);
+    nextTask();
+}
+
+function nextTask() {
+    activeKeyHandler = null;
+    if (currentIndex >= queue.length) { showScore(); return; }
+
+    const type = queue[currentIndex];
+    document.getElementById('hud-type').textContent = type.name;
+    document.getElementById('hud-progress').textContent =
+        `Feladat ${currentIndex + 1} / ${queue.length}`;
+
+    if (type.kind === 'math') renderMathTask(type);
+    else renderJlyTask(type);
+}
+
+function advance() {
+    currentIndex++;
+    nextTask();
+}
+
+/* =========================================================
+   Math task rendering
+   ========================================================= */
+function renderMathTask(type) {
+    const problem = type.gen();
+    let answerStr = '';
+    let locked = false;
+
+    stage.innerHTML =
+        `<div class="top">` +
+            `<span>${problem.num1}</span> ${problem.op} <span>${problem.num2}</span> = ` +
+            `<span id="result">__</span>` +
+        `</div>` +
+        `<div class="bottom"><div class="digit-grid" id="digits"></div></div>`;
+
+    const resultEl = document.getElementById('result');
+    const topEl = stage.querySelector('.top');
+    topEl.style.animation = 'newProblem 0.5s ease';
+    setTimeout(() => { topEl.style.animation = ''; }, 500);
+
+    function select(d) {
+        if (locked) return;
+        if (answerStr.length < problem.maxLen) {
+            answerStr += String(d);
+            resultEl.textContent = answerStr || '__';
+        }
+    }
+    function del() {
+        if (locked) return;
+        answerStr = answerStr.slice(0, -1);
+        resultEl.textContent = answerStr || '__';
+    }
+    function submit() {
+        if (locked || !answerStr) return;
+        locked = true;
+        if (parseInt(answerStr, 10) === problem.answer) {
+            scores[type.id].correct++;
+            resultEl.style.color = 'green';
+            resultEl.style.animation = 'correct 0.5s ease';
+            setTimeout(advance, 1000);
+        } else {
+            scores[type.id].wrong++;
+            resultEl.style.color = 'red';
+            resultEl.style.animation = 'wrong 0.4s ease';
+            setTimeout(advance, 2000);
+        }
+    }
+
+    // Build digit grid
+    const grid = document.getElementById('digits');
+    for (let i = 1; i <= 9; i++) {
+        const box = document.createElement('div');
+        box.className = 'digit-box';
+        box.textContent = i;
+        box.onclick = () => select(i);
+        grid.appendChild(box);
+    }
+    const box0 = document.createElement('div');
+    box0.className = 'digit-box';
+    box0.textContent = 0;
+    box0.onclick = () => select(0);
+    grid.appendChild(box0);
+
+    const delBox = document.createElement('div');
+    delBox.className = 'action-box';
+    delBox.textContent = '←';
+    delBox.onclick = del;
+    grid.appendChild(delBox);
+
+    const acceptBox = document.createElement('div');
+    acceptBox.className = 'action-box';
+    acceptBox.textContent = '✓';
+    acceptBox.onclick = submit;
+    grid.appendChild(acceptBox);
+
+    // Keyboard bridge (only active while this math task is on screen)
+    activeKeyHandler = (e) => {
+        if (e.key >= '0' && e.key <= '9') select(parseInt(e.key, 10));
+        else if (e.key === 'Backspace') del();
+        else if (e.key === 'Enter') submit();
+    };
+}
+
+/* =========================================================
+   jly task rendering
+   ========================================================= */
+function renderJlyTask(type) {
+    const problem = type.gen();
+    let answered = false;
+
+    stage.innerHTML =
+        `<div id="word-container">` +
+            `<div id="options"></div>` +
+            `<div id="word"></div>` +
+        `</div>`;
+
+    const wordEl = document.getElementById('word');
+    const optionsEl = document.getElementById('options');
+
+    wordEl.textContent =
+        problem.word.slice(0, problem.index) + '__' +
+        problem.word.slice(problem.index + problem.part.length);
+
+    const correctPart = problem.part;
+    const answers = [correctPart, jlyWrong(correctPart)].sort();
+
+    const buttons = answers.map(text => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn fade';
+        btn.textContent = text;
+        btn.onclick = () => answer(btn, text === correctPart);
+        optionsEl.appendChild(btn);
+        return btn;
+    });
+
+    wordEl.classList.add('fade-out');
+    setTimeout(() => {
+        wordEl.classList.remove('fade-out');
+        void wordEl.offsetWidth;
+        wordEl.classList.add('fade-in');
+        buttons.forEach(b => b.classList.remove('fade'));
+    }, 100);
+
+    function answer(button, isCorrect) {
+        if (answered) return;
+        answered = true;
+
+        buttons.forEach(b => b.disabled = true);
+        wordEl.textContent = problem.word;   // reveal full word
+
+        if (isCorrect) {
+            scores[type.id].correct++;
+            button.classList.add('correct');
+            wordEl.classList.remove('fade-in');
+            void wordEl.offsetWidth;
+            wordEl.classList.add('celebrate');
+            setTimeout(() => wordEl.classList.remove('celebrate'), 500);
+            setTimeout(advance, 1200);
+        } else {
+            scores[type.id].wrong++;
+            button.classList.add('wrong');
+            buttons.forEach(b => { if (b.textContent === correctPart) b.classList.add('correct'); });
+            wordEl.classList.remove('fade-in');
+            void wordEl.offsetWidth;
+            wordEl.classList.add('shake');
+            setTimeout(() => wordEl.classList.remove('shake'), 400);
+            setTimeout(advance, 2200);
+        }
+    }
+}
+
+/* =========================================================
+   Score screen
+   ========================================================= */
+function pctClass(pct) {
+    return pct >= 80 ? 'pct-good' : pct >= 50 ? 'pct-mid' : 'pct-bad';
+}
+function showScore() {
+    const body = document.getElementById('score-body');
+    body.innerHTML = '';
+
+    let totalCorrect = 0, totalAll = 0;
+    TYPES.forEach(t => {
+        const s = scores[t.id];
+        const all = s.correct + s.wrong;
+        if (all === 0) return;               // skip types that weren't practiced
+        totalCorrect += s.correct;
+        totalAll += all;
+        const pct = Math.round((s.correct / all) * 100);
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+            `<td>${t.name}</td>` +
+            `<td class="num">${s.correct}</td>` +
+            `<td class="num">${all}</td>` +
+            `<td class="num ${pctClass(pct)}">${pct}%</td>`;
+        body.appendChild(tr);
+    });
+
+    const totalPct = totalAll > 0 ? Math.round((totalCorrect / totalAll) * 100) : 0;
+    const tr = document.createElement('tr');
+    tr.className = 'total-row';
+    tr.innerHTML =
+        `<td>Összesen</td>` +
+        `<td class="num">${totalCorrect}</td>` +
+        `<td class="num">${totalAll}</td>` +
+        `<td class="num ${pctClass(totalPct)}">${totalPct}%</td>`;
+    body.appendChild(tr);
+
+    showScreen(scoreScreen);
+}
+
+/* =========================================================
+   Wiring
+   ========================================================= */
+document.addEventListener('keydown', (e) => {
+    if (activeKeyHandler) activeKeyHandler(e);
+});
+document.getElementById('start-btn').addEventListener('click', startSession);
+document.getElementById('restart-btn').addEventListener('click', () => showScreen(startScreen));
+document.getElementById('inc-all').addEventListener('click', () => adjustAll(GLOBAL_STEP));
+document.getElementById('dec-all').addEventListener('click', () => adjustAll(-GLOBAL_STEP));
+document.getElementById('mix-toggle').addEventListener('change', updateMixHint);
+
+buildStartInputs();
+updateMixHint();
+</script>
+</body>
+</html>
