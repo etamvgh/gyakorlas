@@ -222,7 +222,8 @@
         }
 
         function checkAnswer() {
-            if (!answer) return;
+            if (!answer || checkAnswer.locked) return;
+            checkAnswer.locked = true;
             const resultEl = document.getElementById('result');
             if (parseInt(answer) === correctAnswer) {
                 correct++;
@@ -232,6 +233,7 @@
                 setTimeout(() => {
                     resultEl.style.animation = '';
                     newProblem();
+                    checkAnswer.locked = false;
                 }, 1000);
             } else {
                 wrong++;
@@ -243,6 +245,7 @@
                     answer = '';
                     resultEl.textContent = '__';
                     resultEl.style.color = '#666';
+                    checkAnswer.locked = false;
                 }, 2000);
             }
         }
