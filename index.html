@@ -6,6 +6,10 @@
 <title>Gyakorló</title>
 <style>
     * { box-sizing: border-box; }
+    html, body {
+        /* Blokkolja a lehúzásos újratöltést és az oldalsó "vissza" gesztust */
+        overscroll-behavior: none;
+    }
     body {
         font-family: system-ui, Arial, sans-serif;
         margin: 0;
@@ -502,6 +506,7 @@ let queue = [];          // array of type objects
 let currentIndex = 0;    // 0-based index into queue
 let scores = {};         // { typeId: { correct, wrong } }
 let activeKeyHandler = null;  // math keyboard bridge
+let sessionActive = false;    // true from Kezdés until the results are dismissed
 
 const startScreen    = document.getElementById('start-screen');
 const exerciseScreen = document.getElementById('exercise-screen');
@@ -582,6 +587,7 @@ function startSession() {
     }
 
     currentIndex = 0;
+    sessionActive = true;
     showScreen(exerciseScreen);
     nextTask();
 }
@@ -796,13 +802,73 @@ function showScore() {
 }
 
 /* =========================================================
+   Accidental navigation / reload protection
+   =========================================================
+   While a session is running (and while the results are still on screen)
+   an unintended reload, tab close or back-navigation would throw away every
+   answer. The browser can only be asked to confirm, not blocked outright,
+   so we combine a beforeunload prompt with suppressing the input gestures
+   that most often cause it by accident.
+   ========================================================= */
+
+/* 1. Reload / close / navigate away -> native confirm dialog. */
+window.addEventListener('beforeunload', (e) => {
+    if (!sessionActive) return;            // start screen: let it go freely
+    e.preventDefault();
+    e.returnValue = '';                    // required by older browsers
+    return '';
+});
+
+/* 2. Back-navigation (browser back button, Android back, swipe-back).
+      A dummy history entry is pushed, so "back" lands on it instead of
+      leaving the page; we then re-push it and stay put.
+      pushState can be rejected on some file:// setups, hence the try/catch:
+      if it fails we simply fall back to the beforeunload prompt above. */
+let historyGuardOk = false;
+function pushGuardState() {
+    try {
+        history.pushState({ guard: true }, '');
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+historyGuardOk = pushGuardState();
+window.addEventListener('popstate', () => {
+    if (!historyGuardOk) return;
+    if (sessionActive) {
+        pushGuardState();       // swallow the back action, stay on the page
+    } else {
+        history.back();         // nothing to lose: let the user leave
+    }
+});
+
+/* 3. Keys that navigate away by accident:
+      - Backspace outside a text field = "back" in some browsers
+      - Alt + Left/Right = history navigation
+      Note: F5 / Ctrl+R cannot be intercepted reliably; step 1 covers those. */
+function isTextField(el) {
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !isTextField(e.target)) {
+        e.preventDefault();
+    } else if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+    }
+}, { capture: true });
+
+/* =========================================================
    Wiring
    ========================================================= */
 document.addEventListener('keydown', (e) => {
     if (activeKeyHandler) activeKeyHandler(e);
 });
 document.getElementById('start-btn').addEventListener('click', startSession);
-document.getElementById('restart-btn').addEventListener('click', () => showScreen(startScreen));
+document.getElementById('restart-btn').addEventListener('click', () => {
+    sessionActive = false;               // results acknowledged: guard off
+    showScreen(startScreen);
+});
 document.getElementById('inc-all').addEventListener('click', () => adjustAll(GLOBAL_STEP));
 document.getElementById('dec-all').addEventListener('click', () => adjustAll(-GLOBAL_STEP));
 document.getElementById('mix-toggle').addEventListener('change', updateMixHint);
