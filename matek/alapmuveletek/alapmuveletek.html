@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alapműveletek</title>
+    <!--
+      Egy oldal mind a négy alapműveletnek. A műveletet URL paraméter adja:
+          ?op=add   összeadás  (kétjegyűek, pótlás: __ + b = c)
+          ?op=sub   kivonás    (kétjegyűek)
+          ?op=mul   szorzás    (egyjegyűek 1..10)
+          ?op=div   osztás     (maradék nélkül, 1..10)
+      Beágyazott mód: &embed=1&count=20&id=...&token=...
+    -->
+    <script src="../../common/embed.js"></script>
+    <style>
+        html, body { height: 100%; }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            background: #f0f0f0;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+        }
+        .top {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 80px;
+            font-weight: bold;
+            gap: 30px;
+        }
+        .bottom {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            padding-bottom: 20px;
+        }
+        .digit-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .digit-box {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            background: white;
+            border-radius: 5px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .digit-box:hover { background: #e0e0e0; }
+        .digit-box:active { background: #d0d0d0; }
+        .action-box {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 5px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .action-box:hover { background: #ccc; }
+        .action-box:active { background: #bbb; }
+        #result {
+            font-size: 60px;
+            color: #666;
+        }
+        @keyframes correct {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.8) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        @keyframes wrong {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            50% { transform: translateX(8px); }
+            75% { transform: translateX(-8px); }
+            100% { transform: translateX(0); }
+        }
+        @keyframes newProblem {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stats div {
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+        }
+        /* Beágyazva az index.html fejléce mutatja az állást. */
+        body.embed .stats { display: none; }
+        @media (max-width: 600px) {
+            .top { font-size: 50px; gap: 15px; }
+            .bottom { padding-bottom: 30px; }
+            .stats {
+                font-size: 14px;
+                padding: 10px;
+                top: 10px;
+                right: 10px;
+            }
+            .stats div { gap: 20px; }
+            .digit-box, .action-box {
+                width: 70px;
+                height: 70px;
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="stats">
+        <div>Helyes válasz: <span id="correct">0</span></div>
+        <div>Rossz válasz: <span id="wrong">0</span></div>
+        <div>Eredmény: <span id="accuracy">0%</span></div>
+    </div>
+    <div class="top">
+        <span id="num1"></span> <span id="op"></span> <span id="num2"></span> = <span id="result">__</span>
+    </div>
+    <div class="bottom">
+        <div class="digit-grid" id="digits"></div>
+    </div>
+    <script>
+        /* ---------- műveletek ---------- */
+        function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+        const OPS = {
+            add: {
+                title: 'Kétjegyű számok összeadása',
+                symbol: '+',
+                make() {
+                    const a = rnd(10, 99), b = rnd(10, 99);
+                    const larger = Math.max(a, b), smaller = Math.min(a, b);
+                    return { num1: larger - smaller, num2: smaller, answer: larger, maxLen: 2 };
+                }
+            },
+            sub: {
+                title: 'Kétjegyű számok kivonása',
+                symbol: '-',
+                make() {
+                    const a = rnd(10, 99), b = rnd(10, 99);
+                    const larger = Math.max(a, b), smaller = Math.min(a, b);
+                    return { num1: larger, num2: smaller, answer: larger - smaller, maxLen: 2 };
+                }
+            },
+            mul: {
+                title: 'Szorzás',
+                symbol: '\u00b7',
+                make() {
+                    const n1 = rnd(1, 10), n2 = rnd(1, 10);
+                    const answer = n1 * n2;
+                    return { num1: n1, num2: n2, answer: answer, maxLen: answer === 100 ? 3 : 2 };
+                }
+            },
+            div: {
+                title: 'Osztás',
+                symbol: ':',
+                make() {
+                    const n1 = rnd(1, 10), n2 = rnd(1, 10);
+                    return { num1: n1 * n2, num2: n1, answer: n2, maxLen: 2 };
+                }
+            }
+        };
+
+        const opKey = OPS[GyakEmbed.param('op', 'add')] ? GyakEmbed.param('op', 'add') : 'add';
+        const OP = OPS[opKey];
+        document.title = OP.title;
+        document.getElementById('op').textContent = OP.symbol;
+
+        /* ---------- állapot ---------- */
+        let answer = '';
+        let problem = null;
+        let correct = 0;
+        let wrong = 0;
+        let solved = 0;        // megválaszolt feladatok száma
+        let locked = false;    // dupla ENTER / ✓ elleni zár
+        let finished = false;  // beágyazott módban elértük a célszámot
+
+        const resultEl = document.getElementById('result');
+
+        function updateStats() {
+            document.getElementById('correct').textContent = correct;
+            document.getElementById('wrong').textContent = wrong;
+            const total = correct + wrong;
+            const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+            document.getElementById('accuracy').textContent = accuracy + '%';
+        }
+
+        function newProblem() {
+            problem = OP.make();
+
+            const topEl = document.querySelector('.top');
+            topEl.style.animation = 'newProblem 0.5s ease';
+            setTimeout(() => topEl.style.animation = '', 500);
+
+            document.getElementById('num1').textContent = problem.num1;
+            document.getElementById('num2').textContent = problem.num2;
+            answer = '';
+            locked = false;
+            resultEl.textContent = '__';
+            resultEl.style.color = '#666';
+            resultEl.style.animation = '';
+        }
+
+        function createDigitBoxes() {
+            const grid = document.getElementById('digits');
+            for (let i = 1; i <= 9; i++) {
+                const box = document.createElement('div');
+                box.className = 'digit-box';
+                box.textContent = i;
+                box.onclick = () => selectDigit(i);
+                grid.appendChild(box);
+            }
+            const box0 = document.createElement('div');
+            box0.className = 'digit-box';
+            box0.textContent = 0;
+            box0.onclick = () => selectDigit(0);
+            grid.appendChild(box0);
+
+            const delBox = document.createElement('div');
+            delBox.className = 'action-box';
+            delBox.textContent = '←';
+            delBox.onclick = deleteDigit;
+            grid.appendChild(delBox);
+
+            const acceptBox = document.createElement('div');
+            acceptBox.className = 'action-box';
+            acceptBox.textContent = '✓';
+            acceptBox.onclick = checkAnswer;
+            grid.appendChild(acceptBox);
+        }
+
+        function selectDigit(digit) {
+            if (locked || finished) return;
+            if (answer.length < problem.maxLen) {
+                answer += digit.toString();
+                resultEl.textContent = answer || '__';
+            }
+        }
+
+        function deleteDigit() {
+            if (locked || finished) return;
+            answer = answer.slice(0, -1);
+            resultEl.textContent = answer || '__';
+        }
+
+        /* A visszajelzés lejárta után: új feladat, vagy jelentés a szülőnek. */
+        function afterFeedback() {
+            resultEl.style.animation = '';
+            if (GyakEmbed.active) {
+                GyakEmbed.progress(correct, wrong, solved);
+                if (solved >= GyakEmbed.target) {
+                    finished = true;
+                    GyakEmbed.done(correct, wrong);
+                    return;
+                }
+            }
+            newProblem();
+        }
+
+        function checkAnswer() {
+            if (locked || finished || !answer) return;
+            locked = true;
+            solved++;
+            if (parseInt(answer, 10) === problem.answer) {
+                correct++;
+                updateStats();
+                resultEl.style.color = 'green';
+                resultEl.style.animation = 'correct 0.5s ease';
+                setTimeout(afterFeedback, 1000);
+            } else {
+                wrong++;
+                updateStats();
+                resultEl.style.color = 'red';
+                resultEl.style.animation = 'wrong 0.4s ease';
+                setTimeout(afterFeedback, 2000);
+            }
+        }
+
+        function handleKey(key) {
+            if (key >= '0' && key <= '9') selectDigit(parseInt(key, 10));
+            else if (key === 'Backspace') deleteDigit();
+            else if (key === 'Enter') checkAnswer();
+        }
+
+        document.addEventListener('keydown', (e) => handleKey(e.key));
+        GyakEmbed.onKey(handleKey);   // szülő oldalról továbbított billentyűk
+
+        createDigitBoxes();
+        newProblem();
+        updateStats();
+    </script>
+</body>
+</html>

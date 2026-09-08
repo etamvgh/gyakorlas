@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>j / ly gyakorló</title>
 
+<script src="../../common/embed.js"></script>
+
 <style>
+html, body { height: 100%; }
 body {
     margin: 0;
-    height: 100vh;
     font-family: system-ui, Arial, sans-serif;
     background: linear-gradient(135deg, #f0f4ff, #fefefe);
     display: flex;
@@ -141,6 +143,9 @@ body {
     75% { transform: translateX(-8px); }
     100% { transform: translateX(0); }
 }
+
+/* Beágyazva az index.html fejléce mutatja az állást. */
+body.embed #stats { display: none; }
 </style>
 </head>
 
@@ -488,6 +493,25 @@ function answer(button, isCorrect) {
     }
 
     updateStatsUI();
+
+    // Beágyazott mód: jelentés a szülő oldalnak, és leállás a célszám elérésekor
+    if (GyakEmbed.active) {
+        const wrongCount = stats.total.all - stats.total.correct;
+        GyakEmbed.progress(stats.total.correct, wrongCount, stats.total.all);
+        if (stats.total.all >= GyakEmbed.target) {
+            /* Itt nem időzítő lépteti a feladatot, hanem a gomb. Ha azonnal
+               jelentenénk, a szülő oldal rögtön továbblépne, és az utolsó szó
+               értékelése (a felfedett szó, a zöld/piros gomb) észrevétlen
+               maradna. Ezért a jelentés a gomb megnyomásáig várat magára. */
+            nextBtn.disabled = false;
+            nextBtn.textContent = "Tovább";
+            nextBtn.onclick = () => {
+                nextBtn.disabled = true;
+                nextBtn.onclick = null;
+                GyakEmbed.done(stats.total.correct, wrongCount);
+            };
+        }
+    }
 }
 
 // Csak a gomb nyomására jön a következő szó
