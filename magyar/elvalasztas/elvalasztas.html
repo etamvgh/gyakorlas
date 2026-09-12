@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elválasztás gyakorló</title>
+<!--
+  Elválasztás gyakorló. Önállóan is megnyitható, és az
+  index.html is be tudja ágyazni (lásd ../../common/embed.js).
+
+  SZÓTÁR FORMÁTUM
+  ===============
+  A szavakat "metakarakterekkel" tároljuk:
+
+    -  helyes elválasztási hely   pl. mac+s-ka   ->  macs|ka
+    +  többjegyű betű összevonása pl. s+zél      ->  "sz" egy betű
+    |  kettőzött többjegyű betű elválasztása     pl. c+sen-get|t+yű
+
+  A '+' két szomszédos karaktert egyetlen betűvé fűz össze (sz, zs, cs,
+  gy, ly, ny, ty, dz, dzs). Mivel a kattintható rések csak BETŰK között
+  jelennek meg, a többjegyű betűk belsejében eleve nem lehet elválasztani.
+
+  A '|' szintén helyes elválasztási hely, de a kettőzött többjegyű betűket
+  elválasztáskor fel kell oldani (AkH.): a bal oldal megkapja a következő
+  betű első karaktere utáni részt is.
+
+      c+sen-get|t+yű   ->  csengettyű   ->  csen-gety-tyű   (ty -> +"y")
+      as|s+zony        ->  asszony      ->  asz-szony       (sz -> +"z")
+      loc|c+san        ->  loccsan      ->  locs-csan       (cs -> +"s")
+      brid|d+z+sel     ->  briddzsel    ->  bridzs-dzsel    (dzs -> +"zs")
+
+  A rés a kattintás előtt ugyanúgy pont, mint a többi (nem árulja el a
+  megoldást); kattintásra a beszúrt karakter és a kötőjel együtt jelenik meg.
+
+  Kényelmi szabály: '|' UTÁN a többjegyű betű '+' nélkül is felismerhető
+  (csen-get|tyű == csen-get|t+yű), mert ott a jelölés értelme szerint
+  biztosan többjegyű betű következik. Máshol a '+' kötelező, mert a
+  betűkapcsolat egyébként kétértelmű (pl. malac+ság: ott a c és s KÉT betű).
+
+  Példa: "s+zél-z+sák" -> betűk: sz | é | l | zs | á | k
+                          helyes rés: a 3. betű (l) után
+-->
+<script src="../../common/embed.js"></script>
+<style>
+    html, body { height: 100%; }
+    body {
+        margin: 0;
+        font-family: system-ui, Arial, sans-serif;
+        background: linear-gradient(135deg, #f0f4ff, #fefefe);
+        display: flex;
+        flex-direction: column;
+        touch-action: manipulation;
+        overscroll-behavior: none;
+    }
+
+    .stats {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        font-size: 20px;
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .stats div {
+        display: flex;
+        justify-content: space-between;
+        gap: 40px;
+    }
+    /* Beágyazva az index.html fejléce mutatja az állást. */
+    body.embed .stats { display: none; }
+
+    #word-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 18px;
+        padding: 20px 12px 0;
+        min-height: 0;
+    }
+    #word {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        font-size: clamp(2rem, 7vw, 4.2rem);
+        font-weight: 800;
+        line-height: 1.1;
+    }
+    .letter {
+        padding: 0 1px;
+        user-select: none;
+    }
+    /* A rés kattintható: alapban pont, kijelölve kötőjel. */
+    .gap {
+        font-family: inherit;
+        font-size: inherit;
+        font-weight: inherit;
+        line-height: 1;
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0 1px;
+        min-width: 0.62em;
+        color: #b9c0d4;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .gap:hover { background: #e6eaff; color: #7f8bb5; }
+    .gap:active { transform: scale(0.9); }
+    .gap:focus-visible { outline: 3px solid #94a6ff; outline-offset: 2px; }
+    .gap.on { color: #2b3a67; }
+    /* Kiértékelés után: hiányzó (kellett volna) és téves (nem kellett) rés */
+    .gap.missed { color: #2e9e44; background: #dff5e3; }
+    .gap.extra  { color: #d63b2f; background: #fde3e0; }
+
+    #solution {
+        font-size: clamp(1rem, 3.4vw, 1.6rem);
+        font-weight: 700;
+        color: #2e9e44;
+        min-height: 1.6em;
+        text-align: center;
+    }
+
+    .controls {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+        padding: 10px 12px 28px;
+        flex-wrap: wrap;
+    }
+    .ctrl-btn {
+        min-width: 150px;
+        min-height: 56px;
+        padding: 16px 28px;
+        font-size: 1.25rem;
+        font-weight: 700;
+        border: none;
+        border-radius: 14px;
+        cursor: pointer;
+        background: #e0e6ff;
+        color: #2b3a67;
+        transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .ctrl-btn:hover { background: #d2daff; }
+    .ctrl-btn:active { transform: scale(0.97); }
+    .ctrl-btn.primary { background: #4a6cff; color: white; }
+    .ctrl-btn.primary:hover { background: #3a5cf0; }
+    /* Jel-gombok (ellenőrzés, alaphelyzet) - a matek gyakorlókhoz hasonlóan. */
+    .ctrl-btn.icon {
+        min-width: 0;
+        width: 68px;
+        height: 68px;
+        padding: 0;
+        font-size: 2rem;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+    }
+    /* Kiértékelés után a "Következő szó" lesz a kiemelt gomb. */
+    #nextBtn:not(:disabled) { background: #4a6cff; color: white; }
+    #nextBtn:not(:disabled):hover { background: #3a5cf0; }
+    .ctrl-btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+    /* animációk, a többi gyakorlóhoz hasonlóan */
+    #word.celebrate { animation: pop 0.5s ease; }
+    @keyframes pop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.18) rotate(-3deg); }
+        100% { transform: scale(1) rotate(0deg); }
+    }
+    #word.shake { animation: shake 0.4s ease; }
+    @keyframes shake {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-8px); }
+        50% { transform: translateX(8px); }
+        75% { transform: translateX(-8px); }
+        100% { transform: translateX(0); }
+    }
+    #word.fade-in { animation: fadeInUp 0.4s ease; }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(24px) scale(0.94); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (max-width: 600px) {
+        .stats { font-size: 14px; padding: 10px; top: 10px; right: 10px; }
+        .stats div { gap: 20px; }
+        .ctrl-btn { min-width: 130px; padding: 14px 18px; font-size: 1.1rem; }
+        .ctrl-btn.icon {
+            min-width: 0;
+            width: 72px;
+            height: 72px;
+            padding: 0;
+            font-size: 2rem;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="stats">
+    <div>Helyes válasz: <span id="correct">0</span></div>
+    <div>Rossz válasz: <span id="wrong">0</span></div>
+    <div>Eredmény: <span id="accuracy">0%</span></div>
+</div>
+
+<div id="word-area">
+    <div id="word" aria-label="Szó elválasztása"></div>
+    <div id="solution" aria-live="polite"></div>
+</div>
+
+<div class="controls">
+    <button type="button" class="ctrl-btn icon" id="clearBtn"
+            title="Alaphelyzet" aria-label="Jelölések törlése">&#x21ba;</button>
+    <button type="button" class="ctrl-btn icon primary" id="checkBtn"
+            title="Ellenőrzés" aria-label="Ellenőrzés">&#x2713;</button>
+    <button type="button" class="ctrl-btn" id="nextBtn" disabled>Következő szó</button>
+</div>
+
+<script>
+/* =========================================================
+   Szótár
+   =========================================================
+   Bővítéskor csak ide kell új sort felvenni. Jelölések:
+     -  helyes elválasztási hely
+     +  többjegyű betű összevonása (sz, zs, cs, gy, ly, ny, ty, dz, dzs)
+   ========================================================= */
+const WORDS = [
+    "A-la-dár",
+    "as|szon+y",
+    "as+z-tal",
+    "a-u-tó",
+    "bor",
+    "ce-ru-za",
+    "c+sap",
+    "c+sen-get|t+yű",
+    "c+sen-get|tyű",
+    "c+si-ga",
+    "di-ó",
+    "di-a-dal",
+    "ü-dí-tő-i-tal",
+    "d+z+se-ki",
+    "e-le-mó-z+si-a",
+    "fag+y-lalt",
+    "fel-a-dat",
+    "fi-a-tal",
+    "für-dő-kád",
+    "fé-sű",
+    "fü-zet",
+    "haj-pánt",
+    "hat|tyú",
+    "is-ko-la",
+    "kag+y-ló",
+    "kag+y-ló",
+    "ká-bel",
+    "ked-ves",
+    "kor-c+so-l+ya",
+    "kör-te",
+    "ku-t+ya",
+    "leg-ü-g+ye-sebb",
+    "loc|csan",
+    "mac+s-ka",
+    "ma-dár",
+    "ma-dzag",
+    "ma-lac",
+    "me-net-rend",
+    "nad-rág",
+    "n+yu-s+zi",
+    "pa-pír",
+    "pa-puc+s",
+    "pe-ches",
+    "po-lip",
+    "prog-ram-fü-zet",
+    "pu-ló-ver",
+    "ra-g+yo-gó",
+    "rá-di-ó",
+    "ref-le-xek",
+    "ren-dü-let-le-nül",
+    "rend-őr",
+    "sap-ka",
+    "strand-lab-da",
+    "s+ze-me-tes",
+    "s+zem-ü-veg",
+    "s+zék",
+    "s+zél-z+sák",
+    "s+zü-net",
+    "tan-kön+yv",
+    "tan-ó-ra",
+    "ta-xi",
+    "te-hén",
+    "temp-lom",
+    "ten-ger-a-latt-já-ró",
+    "ton-na",
+    "tö-röl-kö-ző",
+    "vas-út",
+    "vi-rág",
+    "ví-zi-pis+z-tol+y",
+];
+
+const DOT = "\u00b7";   // · alaphelyzet
+const DASH = "-";       // kijelölt elválasztás
+
+/* Többjegyű betűk (hosszabb előbb!) - a '|' utáni automatikus felismeréshez. */
+const MULTI_LETTERS = ["dzs", "sz", "zs", "cs", "gy", "ly", "ny", "ty", "dz"];
+
+/* Szótár-bejegyzés feldolgozása betűkre, helyes résekre és beszúrásokra.
+   Visszatérés:
+     letters : betűk tömbje (a többjegyűek egy elemként)
+     breaks  : helyes rések indexei (a rés i = az i. betű UTÁN)
+     extras  : { résindex: beszúrandó karakterek }  - csak '|' esetén
+   ========================================================= */
+function parseSpec(spec) {
+    const letters = [];
+    const breaks = new Set();
+    const extras = {};
+    let pending = null;        // '-' vagy '|', ha rés következik
+    let i = 0;
+
+    while (i < spec.length) {
+        const ch = spec[i];
+        if (ch === '-' || ch === '|') { pending = ch; i++; continue; }
+
+        // betű beolvasása; '+' hozzáfűzi a következő karaktert ugyanehhez a betűhöz
+        let letter = ch;
+        i++;
+        while (i < spec.length && spec[i] === '+') {
+            letter += spec[i + 1];
+            i += 2;
+        }
+
+        /* '|' után biztosan többjegyű betű jön: '+' nélkül is felismerjük. */
+        if (pending === '|' && letter.length === 1) {
+            const rest = letter + spec.slice(i);
+            const found = MULTI_LETTERS.find(m => rest.startsWith(m));
+            if (found) {
+                letter = found;
+                i += found.length - 1;
+            }
+        }
+
+        letters.push(letter);
+
+        if (pending) {
+            const gap = letters.length - 2;      // rés az előző és a mostani betű között
+            if (gap >= 0) {
+                breaks.add(gap);
+                /* Kettőzött többjegyű betű: a bal oldal megkapja a betű
+                   első karaktere utáni részt (ty -> "y", dzs -> "zs"). */
+                if (pending === '|' && letter.length > 1) extras[gap] = letter.slice(1);
+            }
+            pending = null;
+        }
+    }
+    return { letters, breaks, extras, word: letters.join(''), spec };
+}
+
+/* =========================================================
+   Állapot
+   ========================================================= */
+const MAX_HISTORY = Math.max(1, Math.min(10, WORDS.length - 1));
+const history = [];
+
+let current = null;          // { letters, breaks, word }
+let marks = new Set();       // a felhasználó által kijelölt rések
+let gapButtons = [];
+let correct = 0;
+let wrong = 0;
+let solved = 0;
+let locked = false;          // kiértékelés megtörtént: a felhasználó léptet tovább
+let finished = false;        // beágyazott módban elértük a célszámot
+
+const wordEl = document.getElementById('word');
+const solutionEl = document.getElementById('solution');
+const checkBtn = document.getElementById('checkBtn');
+const clearBtn = document.getElementById('clearBtn');
+const nextBtn = document.getElementById('nextBtn');
+
+function updateStats() {
+    document.getElementById('correct').textContent = correct;
+    document.getElementById('wrong').textContent = wrong;
+    const total = correct + wrong;
+    document.getElementById('accuracy').textContent =
+        (total > 0 ? Math.round((correct / total) * 100) : 0) + '%';
+}
+
+function pickSpec() {
+    let available = WORDS.filter(w => !history.includes(w));
+    if (available.length === 0) {
+        history.length = 0;
+        available = [...WORDS];
+    }
+    const spec = available[Math.floor(Math.random() * available.length)];
+    history.push(spec);
+    if (history.length > MAX_HISTORY) history.shift();
+    return spec;
+}
+
+/* A helyes megoldás szövege, pl. "szél-zsák" vagy "csen-gety-tyű" */
+function solutionText(item) {
+    return item.letters
+        .map((l, i) => l + (item.breaks.has(i)
+            ? (item.extras[i] || '') + DASH
+            : ''))
+        .join('');
+}
+
+function newWord() {
+    current = parseSpec(pickSpec());
+    marks = new Set();
+    gapButtons = [];
+    locked = false;
+
+    wordEl.innerHTML = '';
+    solutionEl.textContent = '';
+    checkBtn.disabled = false;
+    clearBtn.disabled = false;
+    nextBtn.disabled = true;     // csak kiértékelés után lesz elérhető
+
+    current.letters.forEach((letter, i) => {
+        const span = document.createElement('span');
+        span.className = 'letter';
+        span.textContent = letter;
+        wordEl.appendChild(span);
+
+        // rés csak betűk KÖZÖTT (a többjegyű betűk belsejében így nincs)
+        if (i < current.letters.length - 1) {
+            const gap = document.createElement('button');
+            gap.type = 'button';
+            gap.className = 'gap';
+            gap.textContent = DOT;
+            gap.dataset.index = String(i);
+            gap.setAttribute('aria-pressed', 'false');
+            gap.setAttribute('aria-label',
+                `Elválasztás ${letter} és ${current.letters[i + 1]} között`);
+            gap.addEventListener('click', () => toggleGap(i));
+            wordEl.appendChild(gap);
+            gapButtons.push(gap);
+        }
+    });
+
+    wordEl.classList.remove('celebrate', 'shake', 'fade-in');
+    void wordEl.offsetWidth;
+    wordEl.classList.add('fade-in');
+}
+
+function toggleGap(i) {
+    if (locked || finished) return;
+    if (marks.has(i)) marks.delete(i); else marks.add(i);
+    const btn = gapButtons.find(b => b.dataset.index === String(i));
+    if (btn) {
+        const on = marks.has(i);
+        /* Kettőzött többjegyű betűnél a kötőjel előtt megjelenik a
+           feloldáshoz tartozó karakter is (pl. "get" + "y-" + "tyű"). */
+        btn.textContent = on ? (current.extras[i] || '') + DASH : DOT;
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+}
+
+function clearMarks() {
+    if (locked || finished) return;
+    marks = new Set();
+    gapButtons.forEach(b => {
+        b.textContent = DOT;
+        b.classList.remove('on');
+        b.setAttribute('aria-pressed', 'false');
+    });
+}
+
+function sameSet(a, b) {
+    if (a.size !== b.size) return false;
+    for (const x of a) if (!b.has(x)) return false;
+    return true;
+}
+
+/* Kiértékelés után a felhasználó lépteti a feladatot, nem időzítő: így van
+   idő megnézni, hol volt a hiba. Beágyazott módban a jelentés is a gomb
+   megnyomásáig várat magára, különben a szülő oldal azonnal továbblépne,
+   és az utolsó szó értékelése észrevétlen maradna. */
+function goNext() {
+    if (!locked || finished) return;          // csak kiértékelés után léphetünk
+    if (GyakEmbed.active && solved >= GyakEmbed.target) {
+        finished = true;
+        checkBtn.disabled = true;
+        clearBtn.disabled = true;
+        nextBtn.disabled = true;
+        GyakEmbed.done(correct, wrong);
+        return;
+    }
+    newWord();
+}
+
+function checkAnswer() {
+    if (locked || finished || !current) return;
+    locked = true;
+    solved++;
+    checkBtn.disabled = true;
+    clearBtn.disabled = true;
+    nextBtn.disabled = false;                 // innen a felhasználó léptet
+
+    const good = sameSet(marks, current.breaks);
+    if (good) {
+        correct++;
+        updateStats();
+        // a helyes megoldás zölden kiemelve
+        gapButtons.forEach(b => {
+            if (current.breaks.has(Number(b.dataset.index))) b.classList.add('missed');
+        });
+        solutionEl.style.color = '#2e9e44';
+        solutionEl.textContent = solutionText(current);
+        wordEl.classList.remove('fade-in');
+        void wordEl.offsetWidth;
+        wordEl.classList.add('celebrate');
+        setTimeout(() => wordEl.classList.remove('celebrate'), 500);
+    } else {
+        wrong++;
+        updateStats();
+        // hiányzó rés zölden, téves rés piros
+        gapButtons.forEach(b => {
+            const i = Number(b.dataset.index);
+            const shouldBreak = current.breaks.has(i);
+            const marked = marks.has(i);
+            if (shouldBreak && !marked) {
+                b.classList.add('missed');
+                b.textContent = (current.extras[i] || '') + DASH;
+            } else if (!shouldBreak && marked) {
+                b.classList.add('extra');
+            }
+        });
+        solutionEl.style.color = '#d63b2f';
+        solutionEl.textContent = 'Helyesen: ' + solutionText(current);
+        wordEl.classList.remove('fade-in');
+        void wordEl.offsetWidth;
+        wordEl.classList.add('shake');
+        setTimeout(() => wordEl.classList.remove('shake'), 400);
+    }
+
+    if (GyakEmbed.active) GyakEmbed.progress(correct, wrong, solved);
+}
+
+/* Billentyűzet: Enter/Space = ellenőrzés, majd következő szó,
+   Backspace = törlés, 1..9 = a megfelelő rés ki-/bekapcsolása. */
+function handleKey(key) {
+    if (key === 'Enter' || key === ' ') {
+        if (locked) goNext(); else checkAnswer();
+    } else if (key === 'Backspace' || key === 'Delete') {
+        clearMarks();
+    } else if (key >= '1' && key <= '9') {
+        toggleGap(parseInt(key, 10) - 1);
+    }
+}
+
+checkBtn.addEventListener('click', checkAnswer);
+clearBtn.addEventListener('click', clearMarks);
+nextBtn.addEventListener('click', goNext);
+document.addEventListener('keydown', (e) => {
+    /* Ha egy gombon van a fókusz, azt a böngésző maga aktiválja Enter/Space-re;
+       ilyenkor nem szabad még egyszer lefuttatni a műveletet. */
+    if (e.target && e.target.tagName === 'BUTTON'
+        && (e.key === 'Enter' || e.key === ' ')) return;
+    handleKey(e.key);
+});
+GyakEmbed.onKey(handleKey);      // szülő oldalról továbbított billentyűk
+
+newWord();
+updateStats();
+</script>
+</body>
+</html>
