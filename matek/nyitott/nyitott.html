@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nyitott mondatok</title>
+<!--
+  Nyitott mondatok 0..100 között, pl.
+
+      __ + 23 − 8  ≥  40 + 5        37 − __  <  12        5 + 20 + __ = 61
+
+  Felépítés: NUM1 ± NUM2 [± NUM3]  (<, ≤, =, ≥, >)  NUM4 [± NUM5]
+  Az ismeretlen a bal oldal egyik tagja (NUM1, NUM2 vagy NUM3).
+
+  SZABÁLYOK
+  - Minden szám és minden részeredmény 0 és 100 között van.
+  - Megoldás minden olyan x (0..100), amelyre a mondat igaz ÉS a bal oldal
+    minden részeredménye is 0..100 között marad (negatív számot nem ismer
+    a gyerek). Mivel x együtthatója mindig ±1, a megoldáshalmaz mindig egy
+    összefüggő szakasz.
+  - A válasz egy szám, vagy egy szám és a számegyenes egyik oldala:
+    "n", "n és a nála kisebbek" (0..n), "n és a nála nagyobbak" (n..100).
+    A kiválasztott szám MINDIG benne van a tartományban.
+  - Ezért csak olyan feladat készül, amelynek megoldása ilyen alakú:
+    egyetlen szám, 0-tól induló, vagy 100-ig tartó szakasz.
+
+  Beágyazott mód: ?embed=1&count=20&id=...&token=...  (lásd common/embed.js)
+-->
+<script src="../../common/embed.js"></script>
+<style>
+    html, body { height: 100%; }
+    body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+        background: #f0f0f0;
+        touch-action: manipulation;
+        overscroll-behavior: none;
+        overflow-y: auto;            /* nagyon alacsony képernyőn görgethető */
+    }
+
+    /* ---------- feladat ---------- */
+    .top {
+        flex: 1 0 auto;              /* nem zsugorodhat a tartalma alá */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 10px 12px 0;
+    }
+    #task {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        column-gap: 0.32em;
+        font-size: clamp(26px, min(6.5vw, 8vh), 64px);
+        font-weight: bold;
+    }
+    #task .op, #task .rel { color: #444; }
+    #task .rel { margin: 0 0.15em; }
+    #result {
+        display: inline-block;
+        min-width: 1.6em;
+        text-align: center;
+        color: #666;
+    }
+    #feedback {
+        min-height: 1.4em;
+        font-size: clamp(16px, 3.4vw, 24px);
+        font-weight: bold;
+        text-align: center;
+    }
+    #feedback .hint { display: block; font-weight: normal; color: #666; font-size: 0.8em; }
+
+    /* ---------- számegyenes ----------
+       #line a görgethető ablak (nincs látható görgetősáv, a szélek
+       elhalványulnak, ha arra még van mit görgetni), #lineInner a teljes
+       0..100 szalag. Egy szám helye a szalagon:
+           x(n) = pad + (szalagszélesség - 2*pad) * n / 100
+       Görgetés: ujjal, egérgörgővel, touchpaddel. Kiválasztás: koppintás
+       vagy kattintás egy számra, illetve billentyűzet / gombok. */
+    .line-area {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 0;
+    }
+    #line {
+        --fade: 64px;
+        --fl: 0px;                   /* bal oldali halványítás (ha van mit görgetni) */
+        --fr: 0px;                   /* jobb oldali halványítás */
+        width: 100%;
+        height: 100px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;       /* Firefox */
+        -ms-overflow-style: none;
+        overscroll-behavior-x: contain;
+        -webkit-mask-image: linear-gradient(to right,
+            transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%);
+        mask-image: linear-gradient(to right,
+            transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%);
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    #line::-webkit-scrollbar { display: none; }      /* Chrome, Safari */
+    #line.fade-left { --fl: var(--fade); }
+    #line.fade-right { --fr: var(--fade); }
+    #lineInner {
+        --pad: 40px;
+        --unit: 34px;                /* két szomszédos szám távolsága */
+        position: relative;
+        width: calc(2 * var(--pad) + 100 * var(--unit));
+        height: 100%;
+        cursor: pointer;
+    }
+    #line.locked #lineInner { cursor: default; }
+    .nl-track {
+        position: absolute;
+        left: var(--pad);
+        right: var(--pad);
+        top: 58px;
+        height: 4px;
+        margin-top: -2px;
+        background: #333;
+        border-radius: 2px;
+    }
+    .nl-tick {
+        position: absolute;
+        top: 52px;
+        width: 2px;
+        height: 12px;
+        background: #555;
+        transform: translateX(-50%);
+    }
+    .nl-tick.mid { top: 49px; height: 18px; background: #333; }
+    .nl-tick.major { top: 45px; height: 26px; width: 3px; background: #222; }
+    .nl-label {
+        position: absolute;
+        top: 74px;
+        transform: translateX(-50%);
+        font-size: 13px;
+        color: #666;
+    }
+    .nl-label.mid { font-size: 14px; color: #444; }
+    .nl-label.major { font-size: 16px; font-weight: bold; color: #222; top: 73px; }
+
+    /* tartományok (kijelölés, illetve kiértékelés) */
+    .nl-bands { position: absolute; inset: 0; pointer-events: none; }
+    .nl-band {
+        position: absolute;
+        top: 50px;
+        height: 16px;
+        transform: translateX(-50%);
+        border-radius: 8px;
+        pointer-events: none;
+    }
+    .nl-band.range { background: rgba(74, 108, 255, 0.35); }
+    .nl-band.ok { background: rgba(76, 175, 80, 0.55); }
+    .nl-band.extra { background: rgba(244, 67, 54, 0.5); }
+    .nl-band.missed {
+        background: repeating-linear-gradient(45deg,
+            rgba(76, 175, 80, 0.15) 0, rgba(76, 175, 80, 0.15) 5px,
+            rgba(76, 175, 80, 0.5) 5px, rgba(76, 175, 80, 0.5) 10px);
+        box-shadow: inset 0 0 0 2px rgba(46, 158, 68, 0.7);
+    }
+    /* nyílhegy a kijelölt irányba */
+    .nl-band.range.to-right::after, .nl-band.range.to-left::after {
+        content: "";
+        position: absolute;
+        top: -4px;
+        border-top: 12px solid transparent;
+        border-bottom: 12px solid transparent;
+    }
+    .nl-band.range.to-right::after { right: -12px; border-left: 14px solid rgba(74, 108, 255, 0.6); }
+    .nl-band.range.to-left::after { left: -12px; border-right: 14px solid rgba(74, 108, 255, 0.6); }
+
+    /* a kiválasztott szám: buborék + pont a vonalon */
+    .nl-pin {
+        position: absolute;
+        top: 0;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: none;
+        transition: left 0.18s ease;
+    }
+    .nl-pin .bubble {
+        min-width: 2.4em;
+        padding: 4px 8px;
+        border-radius: 13px;
+        background: #4a6cff;
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+    .nl-pin .stem { width: 3px; height: 14px; background: #4a6cff; }
+    .nl-pin .dot {
+        width: 16px;
+        height: 16px;
+        margin-top: -2px;
+        border-radius: 50%;
+        background: white;
+        border: 4px solid #4a6cff;
+        box-sizing: border-box;
+    }
+    .nl-pin.hidden { display: none; }
+    .nl-pin.good .bubble, .nl-pin.good .stem { background: #2e9e44; }
+    .nl-pin.good .dot { border-color: #2e9e44; }
+    .nl-pin.bad .bubble, .nl-pin.bad .stem { background: #d63b2f; }
+    .nl-pin.bad .dot { border-color: #d63b2f; }
+
+    /* ---------- gombok ---------- */
+    .side-row { display: flex; gap: 10px; }
+    .bottom {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+        padding: 6px 0 20px;
+    }
+    .digit-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+    .digit-box, .action-box {
+        width: 60px;
+        height: 60px;
+        border: 2px solid #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-radius: 5px;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .digit-box { font-size: 30px; background: white; }
+    .digit-box:hover { background: #e0e0e0; }
+    .digit-box:active { background: #d0d0d0; }
+    .action-box { font-size: 24px; background: #ddd; }
+    .action-box:hover { background: #ccc; }
+    .action-box:active { background: #bbb; }
+    .action-box.active { background: #4a6cff; border-color: #2b45c4; color: white; }
+    .action-box.disabled { opacity: 0.4; cursor: default; }
+    /* rossz válasz után a ✓ lépteti tovább a feladatot */
+    .action-box.next { background: #4a6cff; border-color: #2b45c4; color: white;
+                       animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+    }
+
+    /* ---------- statisztika ----------
+       Az állás nem lebeg a sarokban (a hosszú feladatot eltakarná),
+       hanem keskeny sávként a feladat fölött áll. */
+    .stats {
+        flex: 0 0 auto;
+        align-self: flex-end;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        column-gap: 22px;
+        row-gap: 2px;
+        margin: 10px 14px 0;
+        padding: 7px 14px;
+        font-size: 17px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .stats div { display: flex; gap: 6px; }
+    /* Beágyazva az index.html fejléce mutatja az állást. */
+    body.embed .stats { display: none; }
+
+    /* ---------- animációk (mint a többi matek gyakorlóban) ---------- */
+    @keyframes correct {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.6) rotate(-5deg); }
+        100% { transform: scale(1) rotate(0deg); }
+    }
+    @keyframes wrong {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-8px); }
+        50% { transform: translateX(8px); }
+        75% { transform: translateX(-8px); }
+        100% { transform: translateX(0); }
+    }
+    @keyframes newProblem {
+        0% { opacity: 0; transform: scale(0.8); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+
+    @media (max-width: 600px) {
+        .stats { align-self: center; font-size: 13px; column-gap: 12px; padding: 5px 10px; margin: 6px 8px 0; }
+        .digit-box, .action-box { width: 64px; height: 64px; }
+        .digit-box { font-size: 30px; }
+    }
+    @media (max-height: 700px) {
+        .digit-box, .action-box { width: 54px; height: 54px; }
+        .digit-grid { gap: 8px; }
+        .bottom { padding-bottom: 10px; }
+    }
+</style>
+</head>
+<body>
+    <div class="stats">
+        <div>Helyes válasz: <span id="correct">0</span></div>
+        <div>Rossz válasz: <span id="wrong">0</span></div>
+        <div>Eredmény: <span id="accuracy">0%</span></div>
+    </div>
+
+    <div class="top">
+        <div id="task" aria-live="polite"></div>
+        <div id="feedback" aria-live="polite"></div>
+    </div>
+
+    <div class="line-area">
+        <div id="line" aria-label="Számegyenes 0-tól 100-ig"></div>
+        <div class="side-row">
+            <div class="action-box disabled" id="leftBtn" role="button"
+                 title="A kiválasztott és a nála kisebb számok"
+                 aria-label="A kiválasztott és a nála kisebb számok">&#x25C0;</div>
+            <div class="action-box disabled" id="rightBtn" role="button"
+                 title="A kiválasztott és a nála nagyobb számok"
+                 aria-label="A kiválasztott és a nála nagyobb számok">&#x25B6;</div>
+        </div>
+    </div>
+
+    <div class="bottom">
+        <div class="digit-grid" id="digits"></div>
+    </div>
+
+<script>
+/* =========================================================
+   Feladatgenerálás
+   ========================================================= */
+const MIN = 0, MAX = 100;
+const RELS = ['<', '<=', '=', '>=', '>'];
+const REL_SYMBOL = { '<': '<', '<=': '\u2264', '=': '=', '>=': '\u2265', '>': '>' };
+const OP_SYMBOL = { '+': '+', '-': '\u2212' };
+
+function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+/* Balról jobbra kiértékelés; null, ha egy szám vagy részeredmény kilóg 0..100-ból. */
+function evalChain(nums, ops) {
+    let v = nums[0];
+    if (v < MIN || v > MAX) return null;
+    for (let i = 0; i < ops.length; i++) {
+        const n = nums[i + 1];
+        if (n < MIN || n > MAX) return null;
+        v = ops[i] === '+' ? v + n : v - n;
+        if (v < MIN || v > MAX) return null;
+    }
+    return v;
+}
+
+function holds(a, rel, b) {
+    switch (rel) {
+        case '<':  return a < b;
+        case '<=': return a <= b;
+        case '=':  return a === b;
+        case '>=': return a >= b;
+        case '>':  return a > b;
+    }
+    return false;
+}
+
+/* Megoldáshalmaz kipróbálással: minden x = 0..100.
+   Visszatérés: { lo, hi, count } vagy null, ha nincs megoldás. */
+function solutionSet(task) {
+    const nums = task.lhs.slice();
+    let lo = null, hi = null, count = 0;
+    for (let x = MIN; x <= MAX; x++) {
+        nums[task.unknown] = x;
+        const v = evalChain(nums, task.lhsOps);
+        if (v !== null && holds(v, task.rel, task.rhsValue)) {
+            if (lo === null) lo = x;
+            hi = x;
+            count++;
+        }
+    }
+    return count ? { lo, hi, count } : null;
+}
+
+/* A jobb oldal felbontása NUM4 ± NUM5 alakra úgy, hogy az értéke t legyen. */
+function splitRhs(t, ops) {
+    if (ops.length === 0) return [t];
+    if (ops[0] === '+') {
+        const a = rnd(0, t);
+        return [a, t - a];
+    }
+    const b = rnd(0, MAX - t);
+    return [t + b, b];
+}
+
+/* A válasz-felület (szám / kisebbek / nagyobbak) csak ilyen halmazt tud leírni. */
+function representable(s) {
+    if (!s) return false;
+    if (s.hi - s.lo + 1 !== s.count) return false;          // biztonsági ellenőrzés
+    if (s.lo === MIN && s.hi === MAX) return false;         // minden szám jó: érdektelen
+    return s.lo === s.hi || s.lo === MIN || s.hi === MAX;
+}
+
+function makeTask() {
+    for (let attempt = 0; attempt < 5000; attempt++) {
+        const lhsN = rnd(2, 3);                 // NUM3 nem mindig van
+        const rhsN = rnd(1, 2);                 // NUM5 nem mindig van
+        const sign = () => (Math.random() < 0.5 ? '+' : '-');
+        const lhsOps = Array.from({ length: lhsN - 1 }, sign);
+        const rhsOps = Array.from({ length: rhsN - 1 }, sign);
+        const lhs = Array.from({ length: lhsN }, () => rnd(MIN, MAX));
+
+        const value = evalChain(lhs, lhsOps);
+        if (value === null) continue;
+
+        const rel = RELS[rnd(0, RELS.length - 1)];
+        const rhsValue = rel === '=' ? value : value + rnd(-25, 25);
+        if (rhsValue < MIN || rhsValue > MAX) continue;
+
+        const task = {
+            lhs, lhsOps,
+            rhs: splitRhs(rhsValue, rhsOps), rhsOps,
+            rel, rhsValue,
+            unknown: rnd(0, lhsN - 1)
+        };
+        const s = solutionSet(task);
+        if (!representable(s)) continue;
+        task.solution = s;
+        return task;
+    }
+    /* gyakorlatilag nem fordul elő, de legyen biztos kimenet */
+    const task = { lhs: [0, 30], lhsOps: ['+'], rhs: [50], rhsOps: [], rel: '=',
+                   rhsValue: 50, unknown: 0 };
+    task.solution = solutionSet(task);
+    return task;
+}
+
+/* Megoldás szövegesen */
+function describe(s) {
+    if (s.lo === s.hi) return String(s.lo);
+    if (s.lo === MIN) return `${s.hi} és a nála kisebb számok`;
+    return `${s.lo} és a nála nagyobb számok`;
+}
+
+/* =========================================================
+   Állapot
+   ========================================================= */
+let task = null;
+let answer = '';          // a beírt szám szövegként
+let side = null;          // null | 'left' | 'right'
+let phase = 'input';      // 'input' | 'auto' (helyes, időzítő) | 'wait' (rossz, ✓-ra vár)
+let correct = 0;
+let wrong = 0;
+let solved = 0;
+let finished = false;     // beágyazott módban elértük a célszámot
+
+const taskEl = document.getElementById('task');
+const feedbackEl = document.getElementById('feedback');
+const lineEl = document.getElementById('line');
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+let resultEl = null;
+let acceptBox = null;
+
+function updateStats() {
+    document.getElementById('correct').textContent = correct;
+    document.getElementById('wrong').textContent = wrong;
+    const total = correct + wrong;
+    document.getElementById('accuracy').textContent =
+        (total > 0 ? Math.round((correct / total) * 100) : 0) + '%';
+}
+
+/* =========================================================
+   Megjelenítés
+   ========================================================= */
+/* Egy szám vízszintes helye a számegyenesen (CSS kifejezés). */
+function xAt(n) {
+    return `calc(var(--pad) + (100% - 2 * var(--pad)) * ${n / (MAX - MIN)})`;
+}
+
+function el(cls, parent) {
+    const e = document.createElement('div');
+    e.className = cls;
+    parent.appendChild(e);
+    return e;
+}
+
+let bandLayer = null;   // a tartomány-sávok helye (a vonal fölött, a tű alatt)
+let pinEl = null;
+let innerEl = null;     // a teljes 0..100 szalag a görgethető ablakon belül
+
+function buildLine() {
+    innerEl = el('', lineEl);
+    innerEl.id = 'lineInner';
+    for (let n = MIN; n <= MAX; n++) {
+        const size = n % 10 === 0 ? ' major' : n % 5 === 0 ? ' mid' : '';
+        el('nl-tick' + size, innerEl).style.left = xAt(n);
+        const label = el('nl-label' + size, innerEl);
+        label.textContent = n;
+        label.style.left = xAt(n);
+    }
+    el('nl-track', innerEl);     // a beosztás után: a vonal folytonos marad
+    bandLayer = el('nl-bands', innerEl);
+    pinEl = el('nl-pin hidden', innerEl);
+    el('bubble', pinEl);
+    el('stem', pinEl);
+    el('dot', pinEl);
+    lineEl.addEventListener('scroll', updateFades, { passive: true });
+    window.addEventListener('resize', updateFades);
+    updateFades();
+}
+
+/* Halványítás csak azon az oldalon, amerre még van mit görgetni. */
+function updateFades() {
+    const max = lineEl.scrollWidth - lineEl.clientWidth;
+    lineEl.classList.toggle('fade-left', lineEl.scrollLeft > 1);
+    lineEl.classList.toggle('fade-right', lineEl.scrollLeft < max - 1);
+}
+
+/* Egy szám helye pixelben a szalag elejétől. */
+function pxAt(n) {
+    const cs = getComputedStyle(innerEl);
+    const pad = parseFloat(cs.getPropertyValue('--pad')) || 0;
+    return pad + (innerEl.offsetWidth - 2 * pad) * (n - MIN) / (MAX - MIN);
+}
+
+/* Görgetés úgy, hogy n középre kerüljön. Ha always=false, csak akkor
+   görget, ha n a halványított szélen vagy azon kívül van. */
+function scrollToNumber(n, always = true) {
+    const x = pxAt(n) - lineEl.scrollLeft;
+    const margin = parseFloat(getComputedStyle(lineEl).getPropertyValue('--fade')) || 0;
+    if (!always && x >= margin && x <= lineEl.clientWidth - margin) return;
+    lineEl.scrollTo({ left: pxAt(n) - lineEl.clientWidth / 2, behavior: 'smooth' });
+}
+
+/* Sáv az a..b számokon (mindkettő benne van). */
+function addBand(a, b, cls) {
+    const band = el('nl-band ' + cls, bandLayer);
+    band.style.left = xAt((a + b) / 2);
+    band.style.width = `max(16px, calc((100% - 2 * var(--pad)) * ${(b - a + 1) / (MAX - MIN)}))`;
+    return band;
+}
+
+function setPin(n, state) {
+    pinEl.classList.toggle('hidden', n === null);
+    pinEl.classList.remove('good', 'bad');
+    if (n === null) return;
+    if (state) pinEl.classList.add(state);
+    pinEl.style.left = xAt(n);
+    pinEl.querySelector('.bubble').textContent = n;
+}
+
+/* Képernyő-koordinátából a legközelebbi szám (a görgetést is figyelembe véve). */
+function numberAtClientX(clientX) {
+    const r = innerEl.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(innerEl).getPropertyValue('--pad')) || 0;
+    const t = (clientX - r.left - pad) / (r.width - 2 * pad);
+    return Math.max(MIN, Math.min(MAX, Math.round(MIN + t * (MAX - MIN))));
+}
+
+function renderTask() {
+    taskEl.innerHTML = '';
+    const add = (cls, text) => {
+        const span = document.createElement('span');
+        span.className = cls;
+        span.textContent = text;
+        taskEl.appendChild(span);
+        return span;
+    };
+    task.lhs.forEach((n, i) => {
+        if (i > 0) add('op', OP_SYMBOL[task.lhsOps[i - 1]]);
+        if (i === task.unknown) {
+            resultEl = add('unknown', '__');
+            resultEl.id = 'result';
+        } else {
+            add('num', String(n));
+        }
+    });
+    add('rel', REL_SYMBOL[task.rel]).dataset.rel = task.rel;
+    task.rhs.forEach((n, i) => {
+        if (i > 0) add('op', OP_SYMBOL[task.rhsOps[i - 1]]);
+        add('num', String(n));
+    });
+}
+
+function answerRange() {
+    if (answer === '') return null;
+    const n = parseInt(answer, 10);
+    if (side === 'left') return { lo: MIN, hi: n };
+    if (side === 'right') return { lo: n, hi: MAX };
+    return { lo: n, hi: n };
+}
+
+/* A beírt szám és a kiválasztott oldal megjelenítése a számegyenesen. */
+function renderSelection() {
+    resultEl.textContent = answer === '' ? '__' : answer;
+    const n = answer === '' ? null : parseInt(answer, 10);
+    bandLayer.innerHTML = '';
+    if (n !== null && side) {
+        const r = answerRange();
+        addBand(r.lo, r.hi, 'range ' + (side === 'right' ? 'to-right' : 'to-left'));
+    }
+    setPin(n, null);
+    const enabled = n !== null && phase === 'input';
+    leftBtn.classList.toggle('disabled', !enabled);
+    rightBtn.classList.toggle('disabled', !enabled);
+    leftBtn.classList.toggle('active', side === 'left');
+    rightBtn.classList.toggle('active', side === 'right');
+    lineEl.classList.toggle('locked', phase !== 'input');
+}
+
+function clearEvaluationMarks() {
+    bandLayer.innerHTML = '';
+    setPin(null);
+}
+
+function newTask() {
+    task = makeTask();
+    answer = '';
+    side = null;
+    phase = 'input';
+    renderTask();
+    clearEvaluationMarks();
+    feedbackEl.textContent = '';
+    acceptBox.classList.remove('next');
+    taskEl.style.animation = 'newProblem 0.5s ease';
+    setTimeout(() => { taskEl.style.animation = ''; }, 500);
+    renderSelection();
+}
+
+/* =========================================================
+   Bevitel
+   ========================================================= */
+/* A szám megváltozása mindig törli a kiválasztott oldalt. */
+function setAnswer(str) {
+    const changed = str !== answer;
+    answer = str;
+    if (changed) side = null;
+    renderSelection();
+}
+
+function selectDigit(d) {
+    if (phase !== 'input' || finished) return;
+    const next = answer === '0' ? String(d) : answer + String(d);
+    if (parseInt(next, 10) > MAX) return;          // legfeljebb 100
+    setAnswer(String(parseInt(next, 10)));
+    scrollToNumber(parseInt(answer, 10));          // a beírt szám középre kerül
+}
+
+function deleteDigit() {
+    if (phase !== 'input' || finished) return;
+    setAnswer(answer.slice(0, -1));
+    if (answer !== '') scrollToNumber(parseInt(answer, 10));
+}
+
+function pickNumber(n) {                           // koppintás a számegyenesen
+    if (phase !== 'input' || finished) return;
+    setAnswer(String(n));
+    scrollToNumber(n, false);                      // csak ha a halvány szélen van
+}
+
+function selectSide(dir) {
+    if (phase !== 'input' || finished || answer === '') return;
+    side = side === dir ? null : dir;               // ismételt nyomás: visszavonás
+    renderSelection();
+}
+
+/* =========================================================
+   Kiértékelés
+   ========================================================= */
+function showEvaluation(ans, sol, good) {
+    /* minden számot besorolunk, majd az egyforma szomszédokat egy sávba vonjuk */
+    bandLayer.innerHTML = '';
+    let runStart = MIN, runCls = null;
+    const classOf = i => {
+        const inAns = i >= ans.lo && i <= ans.hi;
+        const inSol = i >= sol.lo && i <= sol.hi;
+        return inAns && inSol ? 'ok' : inAns ? 'extra' : inSol ? 'missed' : null;
+    };
+    for (let i = MIN; i <= MAX + 1; i++) {
+        const cls = i <= MAX ? classOf(i) : null;
+        if (cls !== runCls) {
+            if (runCls) addBand(runStart, i - 1, runCls);
+            runStart = i;
+            runCls = cls;
+        }
+    }
+    setPin(parseInt(answer, 10), good ? 'good' : 'bad');
+}
+
+function checkAnswer() {
+    if (finished) return;
+    if (phase === 'wait') { advance(); return; }   // rossz válasz után: tovább
+    if (phase !== 'input' || answer === '') return;
+
+    const ans = answerRange();
+    const sol = task.solution;
+    const good = ans.lo === sol.lo && ans.hi === sol.hi;
+    solved++;
+    showEvaluation(ans, sol, good);
+    renderSelectionLocked();
+
+    if (good) {
+        correct++;
+        phase = 'auto';
+        resultEl.style.color = 'green';
+        resultEl.style.animation = 'correct 0.5s ease';
+        feedbackEl.style.color = 'green';
+        feedbackEl.textContent = 'Helyes! ' + describe(sol);
+        setTimeout(advance, 1500);
+    } else {
+        wrong++;
+        phase = 'wait';
+        resultEl.style.color = 'red';
+        resultEl.style.animation = 'wrong 0.4s ease';
+        feedbackEl.style.color = '#d63b2f';
+        feedbackEl.innerHTML = '';
+        feedbackEl.appendChild(document.createTextNode('Megoldás: ' + describe(sol) + ' '));
+        const hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = '(tovább: \u2713)';
+        feedbackEl.appendChild(hint);
+        acceptBox.classList.add('next');
+        scrollToNumber(sol.lo === MIN ? sol.hi : sol.lo);   // a megoldás határa középre
+    }
+    updateStats();
+    if (GyakEmbed.active) GyakEmbed.progress(correct, wrong, solved);
+}
+
+/* Kiértékelés után a gombok állapota (oldalválasztás tiltva). */
+function renderSelectionLocked() {
+    leftBtn.classList.add('disabled');
+    rightBtn.classList.add('disabled');
+    lineEl.classList.add('locked');
+}
+
+/* Következő feladat, vagy beágyazott módban jelentés a szülőnek. */
+function advance() {
+    if (finished || phase === 'input') return;
+    resultEl.style.animation = '';
+    if (GyakEmbed.active && solved >= GyakEmbed.target) {
+        finished = true;
+        acceptBox.classList.remove('next');
+        GyakEmbed.done(correct, wrong);
+        return;
+    }
+    newTask();
+}
+
+/* =========================================================
+   Gombok és billentyűzet
+   ========================================================= */
+function createDigitBoxes() {
+    const grid = document.getElementById('digits');
+    const box = (cls, text, onClick) => {
+        const el = document.createElement('div');
+        el.className = cls;
+        el.textContent = text;
+        el.onclick = onClick;
+        grid.appendChild(el);
+        return el;
+    };
+    for (let i = 1; i <= 9; i++) box('digit-box', i, () => selectDigit(i));
+    box('digit-box', 0, () => selectDigit(0));
+    box('action-box', '\u2190', deleteDigit);
+    acceptBox = box('action-box', '\u2713', checkAnswer);
+}
+
+function handleKey(key) {
+    if (key >= '0' && key <= '9' && key.length === 1) selectDigit(parseInt(key, 10));
+    else if (key === 'Backspace') deleteDigit();
+    else if (key === 'Enter') checkAnswer();
+    else if (key === 'ArrowLeft') selectSide('left');
+    else if (key === 'ArrowRight') selectSide('right');
+}
+
+leftBtn.addEventListener('click', () => selectSide('left'));
+rightBtn.addEventListener('click', () => selectSide('right'));
+
+/* Koppintás / kattintás a számegyenesen: a legközelebbi szám lesz kiválasztva.
+   Ujjal húzva a böngésző görget, és ilyenkor nem keletkezik "click",
+   így a görgetés nem változtatja meg a kiválasztást. */
+lineEl.addEventListener('click', (e) => pickNumber(numberAtClientX(e.clientX)));
+
+/* Egérgörgő: a függőleges görgetést vízszintesre fordítjuk.
+   A touchpad vízszintes gesztusát (deltaX) a böngésző magától kezeli. */
+lineEl.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const factor = e.deltaMode === 1 ? 34 : e.deltaMode === 2 ? lineEl.clientWidth : 1;
+    lineEl.scrollLeft += e.deltaY * factor;
+    e.preventDefault();
+}, { passive: false });
+document.addEventListener('keydown', (e) => {
+    /* a nyilak ne görgessék a számegyenest vagy az oldalt */
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault();
+    handleKey(e.key);
+});
+GyakEmbed.onKey(handleKey);      // szülő oldalról továbbított billentyűk
+
+buildLine();
+createDigitBoxes();
+newTask();
+updateStats();
+</script>
+</body>
+</html>
