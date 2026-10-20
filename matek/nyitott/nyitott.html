@@ -18,6 +18,9 @@
     minden részeredménye is 0..100 között marad (negatív számot nem ismer
     a gyerek). Mivel x együtthatója mindig ±1, a megoldáshalmaz mindig egy
     összefüggő szakasz.
+  - A részeredmény-szabály a feladaton nem látszik, ezért csak olyan feladat
+    készül, ahol nem változtat a megoldáson: a megoldás ugyanaz, mintha
+    csak az egyenlőtlenséget néznénk.
   - A válasz egy szám, vagy egy szám és a számegyenes egyik oldala:
     "n", "n és a nála kisebbek" (0..n), "n és a nála nagyobbak" (n..100).
     A kiválasztott szám MINDIG benne van a tartományban.
@@ -375,13 +378,17 @@ function holds(a, rel, b) {
 }
 
 /* Megoldáshalmaz kipróbálással: minden x = 0..100.
+   bounded=true:  a részeredményeknek is 0..100 között kell maradniuk.
+   bounded=false: csak maga az egyenlőtlenség számít (ahogy a gyerek gondolja).
    Visszatérés: { lo, hi, count } vagy null, ha nincs megoldás. */
-function solutionSet(task) {
+function solutionSet(task, bounded = true) {
     const nums = task.lhs.slice();
     let lo = null, hi = null, count = 0;
     for (let x = MIN; x <= MAX; x++) {
         nums[task.unknown] = x;
-        const v = evalChain(nums, task.lhsOps);
+        const v = bounded ? evalChain(nums, task.lhsOps)
+                          : nums.reduce((acc, n, i) => i === 0 ? n
+                                : task.lhsOps[i - 1] === '+' ? acc + n : acc - n, 0);
         if (v !== null && holds(v, task.rel, task.rhsValue)) {
             if (lo === null) lo = x;
             hi = x;
@@ -389,6 +396,10 @@ function solutionSet(task) {
         }
     }
     return count ? { lo, hi, count } : null;
+}
+
+function sameSet(a, b) {
+    return (!a && !b) || (!!a && !!b && a.lo === b.lo && a.hi === b.hi && a.count === b.count);
 }
 
 /* A jobb oldal felbontása NUM4 ± NUM5 alakra úgy, hogy az értéke t legyen. */
@@ -434,6 +445,11 @@ function makeTask() {
         };
         const s = solutionSet(task);
         if (!representable(s)) continue;
+        /* A részeredmény-szabály nem látszik a feladaton. Ha ez szűkítené a
+           megoldást (pl. __ + 30 − 71 > 28: x ≥ 71 esetén __ + 30 > 100),
+           a gyerek joggal érezné hibásnak a "csak 70" választ, ezért az
+           ilyen feladatot eldobjuk. */
+        if (!sameSet(s, solutionSet(task, false))) continue;
         task.solution = s;
         return task;
     }
