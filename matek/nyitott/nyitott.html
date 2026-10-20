@@ -28,6 +28,18 @@
     egyetlen szám, 0-tól induló, vagy 100-ig tartó szakasz.
 
   Beágyazott mód: ?embed=1&count=20&id=...&token=...  (lásd common/embed.js)
+
+  "x" VÁLTOZAT (?valtozat=x, a matek/nyitottx/ is ide irányít):
+      A · __ ± B  (<, ≤, ≥, >)  C       A: 1..10,  x: 0..10,  B, C: 1..100
+  C − B (ill. − B esetén C + B) mindig osztható A-val, így a határ egész
+  szám. A "xmod" változat (?valtozat=xmod, matek/nyitottxmod/) ugyanez
+  oszthatósági feltétel nélkül.
+  A számegyenes 0..10, a többi szabály (részeredmények 0..100 között,
+  a láthatatlan szabály nem változtathat a megoldáson) ugyanaz.
+
+  A feladatban az ismeretlen helye mindig "__"; a beírt számot csak a
+  számegyenes tűje mutatja. Kiértékeléskor az egész (egyen)lőtlenség
+  színeződik és mozdul meg.
 -->
 <script src="../../common/embed.js"></script>
 <style>
@@ -116,9 +128,9 @@
     #line.fade-right { --fr: var(--fade); }
     #lineInner {
         --pad: 40px;
-        --unit: 34px;                /* két szomszédos szám távolsága */
+        --unit: 34px;                /* két szomszédos szám legkisebb távolsága */
         position: relative;
-        width: calc(2 * var(--pad) + 100 * var(--unit));
+        margin: 0 auto;              /* a szélessége a tartománytól függ (JS) */
         height: 100%;
         cursor: pointer;
     }
@@ -301,6 +313,19 @@
         0% { opacity: 0; transform: scale(0.8); }
         100% { opacity: 1; transform: scale(1); }
     }
+    /* kiértékelés: az egész (egyen)lőtlenség színeződik és mozdul */
+    @keyframes taskCorrect {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.15) rotate(-2deg); }
+        100% { transform: scale(1) rotate(0deg); }
+    }
+    @keyframes taskWrong {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-10px); }
+        40%, 80% { transform: translateX(10px); }
+    }
+    #task.good, #task.good .op, #task.good .rel, #task.good #result { color: #2e9e44; }
+    #task.bad, #task.bad .op, #task.bad .rel, #task.bad #result { color: #d63b2f; }
 
     @media (max-width: 600px) {
         .stats { align-self: center; font-size: 13px; column-gap: 12px; padding: 5px 10px; margin: 6px 8px 0; }
@@ -345,23 +370,40 @@
 <script>
 /* =========================================================
    Feladatgenerálás
+   =========================================================
+   Változatok (URL paraméter: ?valtozat=...):
+     alap : NUM1 ± NUM2 [± NUM3]  rel  NUM4 [± NUM5], válasz 0..100
+     x    : A · x ± B  rel  C,  A: 1..10,  x: 0..10,  B, C: 1..100, válasz 0..10,
+            C ∓ B osztható A-val (a határ egész szám, nincs maradékos osztás)
+     xmod : mint x, de C ∓ B nem feltétlenül osztható A-val
    ========================================================= */
-const MIN = 0, MAX = 100;
-const RELS = ['<', '<=', '=', '>=', '>'];
+const VARIANT = ({ x: 'x', xmod: 'xmod' })[GyakEmbed.param('valtozat', '')] || 'alap';
+const MULT = VARIANT !== 'alap';                     // A · x ± B alakú feladatok
+const VAL_MIN = 0, VAL_MAX = 100;                    // számok és részeredmények
+const MIN = 0;                                       // a válasz (és a számegyenes), x is lehet 0
+const MAX = MULT ? 10 : 100;
+const RELS = MULT ? ['<', '<=', '>=', '>'] : ['<', '<=', '=', '>=', '>'];
 const REL_SYMBOL = { '<': '<', '<=': '\u2264', '=': '=', '>=': '\u2265', '>': '>' };
-const OP_SYMBOL = { '+': '+', '-': '\u2212' };
+const OP_SYMBOL = { '+': '+', '-': '\u2212', '*': '\u00b7' };
+if (VARIANT === 'x') document.title = 'Nyitott mondatok szorzással';
+if (VARIANT === 'xmod') document.title = 'Nyitott mondatok szorzással (maradékos)';
 
 function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
-/* Balról jobbra kiértékelés; null, ha egy szám vagy részeredmény kilóg 0..100-ból. */
+function applyOp(v, op, n) {
+    return op === '+' ? v + n : op === '-' ? v - n : v * n;
+}
+
+/* Balról jobbra kiértékelés; null, ha egy szám vagy részeredmény kilóg 0..100-ból.
+   (A · x ± B esetén a szorzás amúgy is elöl áll, így a sorrend helyes.) */
 function evalChain(nums, ops) {
     let v = nums[0];
-    if (v < MIN || v > MAX) return null;
+    if (v < VAL_MIN || v > VAL_MAX) return null;
     for (let i = 0; i < ops.length; i++) {
         const n = nums[i + 1];
-        if (n < MIN || n > MAX) return null;
-        v = ops[i] === '+' ? v + n : v - n;
-        if (v < MIN || v > MAX) return null;
+        if (n < VAL_MIN || n > VAL_MAX) return null;
+        v = applyOp(v, ops[i], n);
+        if (v < VAL_MIN || v > VAL_MAX) return null;
     }
     return v;
 }
@@ -377,7 +419,7 @@ function holds(a, rel, b) {
     return false;
 }
 
-/* Megoldáshalmaz kipróbálással: minden x = 0..100.
+/* Megoldáshalmaz kipróbálással: minden x = MIN..MAX.
    bounded=true:  a részeredményeknek is 0..100 között kell maradniuk.
    bounded=false: csak maga az egyenlőtlenség számít (ahogy a gyerek gondolja).
    Visszatérés: { lo, hi, count } vagy null, ha nincs megoldás. */
@@ -388,7 +430,7 @@ function solutionSet(task, bounded = true) {
         nums[task.unknown] = x;
         const v = bounded ? evalChain(nums, task.lhsOps)
                           : nums.reduce((acc, n, i) => i === 0 ? n
-                                : task.lhsOps[i - 1] === '+' ? acc + n : acc - n, 0);
+                                : applyOp(acc, task.lhsOps[i - 1], n), 0);
         if (v !== null && holds(v, task.rel, task.rhsValue)) {
             if (lo === null) lo = x;
             hi = x;
@@ -409,7 +451,7 @@ function splitRhs(t, ops) {
         const a = rnd(0, t);
         return [a, t - a];
     }
-    const b = rnd(0, MAX - t);
+    const b = rnd(0, VAL_MAX - t);
     return [t + b, b];
 }
 
@@ -421,43 +463,70 @@ function representable(s) {
     return s.lo === s.hi || s.lo === MIN || s.hi === MAX;
 }
 
+/* A feladat elfogadható-e: a megoldás leírható a felülettel, és a
+   (láthatatlan) részeredmény-szabály nem változtat rajta. Ha szűkítené
+   (pl. __ + 30 − 71 > 28: x ≥ 71 esetén __ + 30 > 100), a gyerek joggal
+   érezné hibásnak a "csak 70" választ. */
+function accept(task) {
+    const s = solutionSet(task);
+    if (!representable(s) || !sameSet(s, solutionSet(task, false))) return null;
+    task.solution = s;
+    return task;
+}
+
 function makeTask() {
+    return MULT ? makeTaskX() : makeTaskBase();
+}
+
+/* A · x ± B  rel  C
+   x    : C pontosan A · xw ± B, így C − B (ill. C + B) osztható A-val,
+          a határ (C ∓ B) : A egész szám, maradékos osztás nem kell.
+   xmod : C a határ környékén szóródik, a hányados általában nem egész. */
+function makeTaskX() {
+    for (let attempt = 0; attempt < 5000; attempt++) {
+        const A = rnd(1, 10), B = rnd(1, 100);
+        const op = Math.random() < 0.5 ? '+' : '-';
+        const xw = rnd(0, 10);                       // a határ környéke legyen érdekes
+        const v = applyOp(A * xw, op, B);
+        const C = VARIANT === 'x' ? v : v + rnd(-A, A);
+        if (C < 1 || C > 100) continue;
+        if (VARIANT === 'x' && (op === '+' ? C - B : C + B) % A !== 0) continue;
+        const rel = RELS[rnd(0, RELS.length - 1)];
+        const task = accept({ lhs: [A, 0, B], lhsOps: ['*', op], rhs: [C], rhsOps: [],
+                              rel, rhsValue: C, unknown: 1 });
+        if (task) return task;
+    }
+    return accept({ lhs: [2, 0, 5], lhsOps: ['*', '+'], rhs: [15], rhsOps: [],
+                    rel: '<=', rhsValue: 15, unknown: 1 });
+}
+
+function makeTaskBase() {
     for (let attempt = 0; attempt < 5000; attempt++) {
         const lhsN = rnd(2, 3);                 // NUM3 nem mindig van
         const rhsN = rnd(1, 2);                 // NUM5 nem mindig van
         const sign = () => (Math.random() < 0.5 ? '+' : '-');
         const lhsOps = Array.from({ length: lhsN - 1 }, sign);
         const rhsOps = Array.from({ length: rhsN - 1 }, sign);
-        const lhs = Array.from({ length: lhsN }, () => rnd(MIN, MAX));
+        const lhs = Array.from({ length: lhsN }, () => rnd(VAL_MIN, VAL_MAX));
 
         const value = evalChain(lhs, lhsOps);
         if (value === null) continue;
 
         const rel = RELS[rnd(0, RELS.length - 1)];
         const rhsValue = rel === '=' ? value : value + rnd(-25, 25);
-        if (rhsValue < MIN || rhsValue > MAX) continue;
+        if (rhsValue < VAL_MIN || rhsValue > VAL_MAX) continue;
 
-        const task = {
+        const task = accept({
             lhs, lhsOps,
             rhs: splitRhs(rhsValue, rhsOps), rhsOps,
             rel, rhsValue,
             unknown: rnd(0, lhsN - 1)
-        };
-        const s = solutionSet(task);
-        if (!representable(s)) continue;
-        /* A részeredmény-szabály nem látszik a feladaton. Ha ez szűkítené a
-           megoldást (pl. __ + 30 − 71 > 28: x ≥ 71 esetén __ + 30 > 100),
-           a gyerek joggal érezné hibásnak a "csak 70" választ, ezért az
-           ilyen feladatot eldobjuk. */
-        if (!sameSet(s, solutionSet(task, false))) continue;
-        task.solution = s;
-        return task;
+        });
+        if (task) return task;
     }
     /* gyakorlatilag nem fordul elő, de legyen biztos kimenet */
-    const task = { lhs: [0, 30], lhsOps: ['+'], rhs: [50], rhsOps: [], rel: '=',
-                   rhsValue: 50, unknown: 0 };
-    task.solution = solutionSet(task);
-    return task;
+    return accept({ lhs: [0, 30], lhsOps: ['+'], rhs: [50], rhsOps: [], rel: '=',
+                    rhsValue: 50, unknown: 0 });
 }
 
 /* Megoldás szövegesen */
@@ -500,7 +569,7 @@ function updateStats() {
    ========================================================= */
 /* Egy szám vízszintes helye a számegyenesen (CSS kifejezés). */
 function xAt(n) {
-    return `calc(var(--pad) + (100% - 2 * var(--pad)) * ${n / (MAX - MIN)})`;
+    return `calc(var(--pad) + (100% - 2 * var(--pad)) * ${(n - MIN) / (MAX - MIN)})`;
 }
 
 function el(cls, parent) {
@@ -517,8 +586,14 @@ let innerEl = null;     // a teljes 0..100 szalag a görgethető ablakon belül
 function buildLine() {
     innerEl = el('', lineEl);
     innerEl.id = 'lineInner';
+    /* Rövid tartomány (1..10) kitölti a szélességet, de legfeljebb 90 px
+       számonként; hosszú tartomány (0..100) 34 px-enként görgethető. */
+    const span = MAX - MIN;
+    innerEl.style.width = `max(calc(2 * var(--pad) + ${span} * var(--unit)),` +
+                          ` min(100%, calc(2 * var(--pad) + ${span} * 90px)))`;
+    const short = span <= 20;
     for (let n = MIN; n <= MAX; n++) {
-        const size = n % 10 === 0 ? ' major' : n % 5 === 0 ? ' mid' : '';
+        const size = short || n % 10 === 0 ? ' major' : n % 5 === 0 ? ' mid' : '';
         el('nl-tick' + size, innerEl).style.left = xAt(n);
         const label = el('nl-label' + size, innerEl);
         label.textContent = n;
@@ -618,7 +693,9 @@ function answerRange() {
 
 /* A beírt szám és a kiválasztott oldal megjelenítése a számegyenesen. */
 function renderSelection() {
-    resultEl.textContent = answer === '' ? '__' : answer;
+    /* Az ismeretlen helye mindig "__" marad: egyenlőtlenségnél a válasz
+       egy szám és egy irány, a beírt számot a számegyenes tűje mutatja. */
+    resultEl.textContent = '__';
     const n = answer === '' ? null : parseInt(answer, 10);
     bandLayer.innerHTML = '';
     if (n !== null && side) {
@@ -648,6 +725,7 @@ function newTask() {
     clearEvaluationMarks();
     feedbackEl.textContent = '';
     acceptBox.classList.remove('next');
+    taskEl.classList.remove('good', 'bad');
     taskEl.style.animation = 'newProblem 0.5s ease';
     setTimeout(() => { taskEl.style.animation = ''; }, 500);
     renderSelection();
@@ -667,7 +745,8 @@ function setAnswer(str) {
 function selectDigit(d) {
     if (phase !== 'input' || finished) return;
     const next = answer === '0' ? String(d) : answer + String(d);
-    if (parseInt(next, 10) > MAX) return;          // legfeljebb 100
+    if (parseInt(next, 10) > MAX) return;          // legfeljebb MAX
+    if (parseInt(next, 10) < MIN) return;          // x változat: 0 nem lehet
     setAnswer(String(parseInt(next, 10)));
     scrollToNumber(parseInt(answer, 10));          // a beírt szám középre kerül
 }
@@ -728,16 +807,16 @@ function checkAnswer() {
     if (good) {
         correct++;
         phase = 'auto';
-        resultEl.style.color = 'green';
-        resultEl.style.animation = 'correct 0.5s ease';
+        taskEl.classList.add('good');
+        taskEl.style.animation = 'taskCorrect 0.5s ease';
         feedbackEl.style.color = 'green';
         feedbackEl.textContent = 'Helyes! ' + describe(sol);
         setTimeout(advance, 1500);
     } else {
         wrong++;
         phase = 'wait';
-        resultEl.style.color = 'red';
-        resultEl.style.animation = 'wrong 0.4s ease';
+        taskEl.classList.add('bad');
+        taskEl.style.animation = 'taskWrong 0.45s ease';
         feedbackEl.style.color = '#d63b2f';
         feedbackEl.innerHTML = '';
         feedbackEl.appendChild(document.createTextNode('Megoldás: ' + describe(sol) + ' '));
@@ -762,7 +841,7 @@ function renderSelectionLocked() {
 /* Következő feladat, vagy beágyazott módban jelentés a szülőnek. */
 function advance() {
     if (finished || phase === 'input') return;
-    resultEl.style.animation = '';
+    taskEl.style.animation = '';
     if (GyakEmbed.active && solved >= GyakEmbed.target) {
         finished = true;
         acceptBox.classList.remove('next');

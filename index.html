@@ -62,13 +62,22 @@
         padding: 10px 0;
         border-bottom: 1px solid #eee;
     }
-    .type-row label { font-size: 1.15rem; font-weight: 600; }
+    .type-link {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #2b3a67;
+        text-decoration: none;
+        border-bottom: 2px solid transparent;
+    }
+    .type-link:hover, .type-link:focus-visible { border-bottom-color: #4a6cff; color: #4a6cff; }
+    .type-row.zero .type-link { color: #9aa1b8; }
     .type-row .op {
         color: #888;
         font-weight: 400;
         font-size: 0.95rem;
         margin-left: 6px;
     }
+    .count-controls { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
     .type-row input {
         width: 80px;
         padding: 10px;
@@ -77,6 +86,21 @@
         border: 2px solid #ccd;
         border-radius: 10px;
     }
+    .reset-btn {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border: 2px solid #ccd;
+        border-radius: 50%;
+        background: #f4f6ff;
+        color: #6b7394;
+        font-size: 1.3rem;
+        line-height: 1;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .reset-btn:hover { background: #ffe9e6; border-color: #e7a59c; color: #d63b2f; }
+    .reset-btn:disabled { opacity: 0.35; cursor: default; background: #f4f6ff; border-color: #ccd; color: #6b7394; }
     .total-line {
         display: flex;
         justify-content: space-between;
@@ -127,6 +151,9 @@
     }
     .step-btn:hover { background: #dde3ff; }
     .step-btn:active { background: #ccd5ff; transform: scale(0.96); }
+    .step-btn.reset-all { margin-right: 8px; }
+    .step-btn.reset-all:hover { background: #ffe9e6; border-color: #e7a59c; color: #d63b2f; }
+    .step-btn:disabled { opacity: 0.35; cursor: default; transform: none; background: #eef1ff; border-color: #ccd; color: #33406b; }
 
     /* keverés kapcsoló */
     .switch-row {
@@ -254,6 +281,9 @@
         <div class="global-row">
             <span class="glabel">Mindegyik típus együtt</span>
             <div class="stepper">
+                <button type="button" class="step-btn reset-all" id="reset-all"
+                        title="Minden feladatszám 0"
+                        aria-label="Minden feladatszám nullázása">&times;</button>
                 <button type="button" class="step-btn" id="dec-all"
                         aria-label="Minden feladatszám csökkentése">−</button>
                 <button type="button" class="step-btn" id="inc-all"
@@ -325,6 +355,8 @@ const TYPES = [
     { id: 'szorzas',     name: 'Szorzás',     op: '·', url: 'matek/alapmuveletek/alapmuveletek.html?op=mul' },
     { id: 'osztas',      name: 'Osztás',      op: ':', url: 'matek/alapmuveletek/alapmuveletek.html?op=div' },
     { id: 'nyitott',     name: 'Nyitott mondat', op: '', url: 'matek/nyitott/nyitott.html' },
+    { id: 'nyitottx',    name: 'Nyitott mondat (szorzás)', op: '', url: 'matek/nyitottx/nyitottx.html' },
+    { id: 'nyitottxmod', name: 'Nyitott mondat (szorzás, maradékos)', op: '', url: 'matek/nyitottxmod/nyitottxmod.html' },
     { id: 'jly',         name: 'j / ly',      op: '',  url: 'magyar/jly2/jly2.html' },
     { id: 'elvalasztas', name: 'Elválasztás', op: '',  url: 'magyar/elvalasztas/elvalasztas.html' },
 ];
@@ -356,12 +388,42 @@ function buildStartInputs() {
     TYPES.forEach(t => {
         const row = document.createElement('div');
         row.className = 'type-row';
-        const opLabel = t.op ? ` <span class="op">(${t.op})</span>` : '';
-        row.innerHTML =
-            `<label for="count-${t.id}">${t.name}${opLabel}</label>` +
-            `<input type="number" id="count-${t.id}" min="0" max="${MAX_COUNT}" value="${DEFAULT_COUNT}">`;
+
+        /* A név a gyakorló oldal önálló változatára mutat, így az index.html
+           egyetlen típus gyakorlásához is használható. */
+        const link = document.createElement('a');
+        link.className = 'type-link';
+        link.href = t.url;
+        link.textContent = t.name;
+        link.title = `${t.name} gyakorlása önállóan`;
+        if (t.op) {
+            const op = document.createElement('span');
+            op.className = 'op';
+            op.textContent = `(${t.op})`;
+            link.appendChild(op);
+        }
+
+        const controls = document.createElement('div');
+        controls.className = 'count-controls';
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = `count-${t.id}`;
+        input.min = '0';
+        input.max = String(MAX_COUNT);
+        input.value = String(DEFAULT_COUNT);
+        input.setAttribute('aria-label', `${t.name}: feladatok száma`);
+        input.addEventListener('input', updateTotal);
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'reset-btn';
+        reset.textContent = '\u00d7';
+        reset.title = `${t.name}: nincs feladat (0)`;
+        reset.setAttribute('aria-label', `${t.name}: feladatszám nullázása`);
+        reset.addEventListener('click', () => { setCount(t.id, 0); updateTotal(); });
+        controls.append(input, reset);
+
+        row.append(link, controls);
         container.appendChild(row);
-        row.querySelector('input').addEventListener('input', updateTotal);
     });
     updateTotal();
 }
@@ -379,8 +441,15 @@ function adjustAll(delta) {
 }
 function updateTotal() {
     const total = TYPES.reduce((s, t) => s + getCount(t.id), 0);
+    TYPES.forEach(t => {
+        const input = document.getElementById(`count-${t.id}`);
+        const zero = getCount(t.id) === 0;
+        input.closest('.type-row').classList.toggle('zero', zero);
+        input.nextElementSibling.disabled = zero;       // a nullázó gomb
+    });
     document.getElementById('total-count').textContent = total;
     document.getElementById('start-btn').disabled = total === 0;
+    document.getElementById('reset-all').disabled = total === 0;
 }
 function isMixed() { return document.getElementById('mix-toggle').checked; }
 function updateMixHint() {
@@ -578,6 +647,10 @@ document.addEventListener('keydown', (e) => {
    Bekötés
    ========================================================= */
 document.getElementById('start-btn').addEventListener('click', startSession);
+document.getElementById('reset-all').addEventListener('click', () => {
+    TYPES.forEach(t => setCount(t.id, 0));
+    updateTotal();
+});
 document.getElementById('inc-all').addEventListener('click', () => adjustAll(GLOBAL_STEP));
 document.getElementById('dec-all').addEventListener('click', () => adjustAll(-GLOBAL_STEP));
 document.getElementById('mix-toggle').addEventListener('change', updateMixHint);
