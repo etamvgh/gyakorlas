@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Betűválasztó gyakorló</title>
+<!--
+  Közös oldal a "melyik betű kell a helyére?" gyakorlókhoz. A típust URL
+  paraméter választja ki (a régi címek ide irányítanak):
+
+      ?tipus=jly   j / ly, jj / lly a szó belsejében       (magyar/jly2/)
+      ?tipus=ou    szóvégi o-ó, ö-ő, u-ú, ü-ű              (magyar/ou/)
+
+  A szó egy helyén "__" áll, a gyerek két lehetőség közül választ (a
+  rövidebb / rövid betű mindig balra kerül). Válasz után a teljes szó
+  látszik, a kérdéses rész kiemelve; "Következő szó" lép tovább.
+
+  A szólista a típus saját könyvtárában lévő szavak.txt fájl (lásd TYPES).
+  Soronként egy szó; üres sor és #-tel kezdődő megjegyzés megengedett, a
+  szó körüli idézőjel és vessző (JavaScript-tömb formátum) is. Ha egy
+  szóban nincs a típushoz illő hely, kimarad (a konzolba kerül egy
+  figyelmeztetés). A fájlt az oldal tölti be, ezért http(s) alól kell
+  megnyitni (serve.py).
+
+  Billentyűzet: ← / 1 = bal oldali, → / 2 = jobb oldali lehetőség
+  (egybetűs lehetőségnél maga a betű is), Enter / szóköz = következő szó.
+
+  Beágyazott mód: ?embed=1&count=20&id=...&token=...  (lásd common/embed.js)
+-->
+<script src="../../common/embed.js"></script>
+<style>
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+    margin: 0;
+    font-family: system-ui, Arial, sans-serif;
+    background: linear-gradient(135deg, #f0f4ff, #fefefe);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+}
+
+#stats {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+.stat-box {
+    background: #ffffffcc;
+    padding: 12px 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+/* Beágyazva az index.html fejléce mutatja az állást. */
+body.embed #stats { display: none; }
+
+#word-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 12px;
+}
+
+#options {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 30px;
+}
+.option-btn {
+    min-width: 140px;
+    padding: 20px 40px;
+    font-size: 2.2rem;
+    font-weight: 600;
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    background-color: #e0e6ff;
+    color: #222;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.2s ease, opacity 0.25s ease, transform 0.25s ease;
+}
+.option-btn:hover:not(:disabled) { background-color: #d2daff; }
+.option-btn.fade { opacity: 0; transform: translateY(10px); }
+.option-btn:disabled { opacity: 0.7; cursor: default; }
+.option-btn.correct { background-color: #4caf50 !important; color: white; opacity: 1; }
+.option-btn.wrong { background-color: #f44336 !important; color: white; opacity: 1; }
+
+#word {
+    font-size: clamp(3.2rem, 9vw, 6.2rem);
+    font-weight: 800;
+    text-align: center;
+    min-height: 1.2em;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+#word .part { color: #4a6cff; }        /* a felfedett kérdéses rész */
+#word.fade-out { opacity: 0; transform: scale(0.85); }
+#word.fade-in { animation: fadeInUp 0.45s ease forwards; }
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+#word.celebrate { animation: pop 0.5s ease; }
+@keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+#word.shake { animation: shake 0.4s ease; }
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    50% { transform: translateX(8px); }
+    75% { transform: translateX(-8px); }
+    100% { transform: translateX(0); }
+}
+
+#message {
+    max-width: 30em;
+    color: #d63b2f;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+#nextBtn {
+    margin: 20px;
+    padding: 18px 36px;
+    font-size: 1.2rem;
+    border: none;
+    border-radius: 14px;
+    background-color: #4a6cff;
+    color: white;
+    cursor: pointer;
+}
+#nextBtn:disabled { background-color: #9aa8ff; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+    #options { gap: 14px; }
+    .option-btn { min-width: 110px; padding: 18px 24px; }
+    .stat-box { padding: 8px 12px; font-size: 0.95rem; }
+}
+</style>
+</head>
+<body>
+
+<div id="stats">
+    <div class="stat-box" id="score">Pontszám: 0 / 0</div>
+</div>
+
+<div id="word-container">
+    <div id="options"></div>
+    <div id="word" aria-live="polite"></div>
+    <div id="message" hidden></div>
+    <button id="nextBtn" disabled>Következő szó</button>
+</div>
+
+<script>
+/* =========================================================
+   Gyakorlótípusok
+   =========================================================
+   Új típushoz egy bejegyzés kell:
+     title  : az oldal címe
+     words  : a szólista helye (ehhez az oldalhoz képest)
+     spots  : egy szóban a lehetséges kérdéses helyek: [{ index, part }]
+              (part = a helyes betű / betűk, ezt takarja a "__")
+     pair   : part -> a két lehetőség [bal, jobb]
+   ========================================================= */
+const TYPES = {
+    /* j / ly a szó belsejében. A kettőzött alak (jj, lly) külön pár, és
+       nem kérdezzük külön egy jj vagy lly részét (ujj j-je, gally ly-je). */
+    jly: {
+        title: 'j / ly gyakorló',
+        words: '../jly2/szavak.txt',
+        spots(word) {
+            /* kis- és nagybetűtől függetlenül keresünk (János, Lajos), a
+               "part" viszont az eredeti betű(k), pl. "J" */
+            const lw = word.toLowerCase();
+            const found = [];
+            ['lly', 'jj', 'ly', 'j'].forEach(p => {
+                for (let i = lw.indexOf(p); i !== -1; i = lw.indexOf(p, i + 1)) {
+                    if (p === 'j' && (lw[i - 1] === 'j' || lw[i + 1] === 'j')) continue;
+                    if (p === 'ly' && lw[i - 1] === 'l') continue;
+                    found.push({ index: i, part: word.substr(i, p.length) });
+                }
+            });
+            return found;
+        },
+        pair(part) { return part.length > 1 && part !== 'ly' ? ['jj', 'lly'] : ['j', 'ly']; }
+    },
+    /* szóvégi rövid / hosszú magánhangzó */
+    ou: {
+        title: 'o-ó, ö-ő, u-ú, ü-ű gyakorló',
+        words: '../ou/szavak.txt',
+        spots(word) {
+            const last = word.slice(-1);
+            return OU_SHORT[last] || OU_LONG[last] ? [{ index: word.length - 1, part: last }] : [];
+        },
+        pair(part) { const s = OU_LONG[part] || part; return [s, OU_SHORT[s]]; }
+    }
+};
+const OU_SHORT = { o: 'ó', 'ö': 'ő', u: 'ú', 'ü': 'ű' };                       // rövid -> hosszú
+const OU_LONG = Object.fromEntries(Object.entries(OU_SHORT).map(([s, l]) => [l, s]));
+
+const TYPE_KEY = TYPES[GyakEmbed.param('tipus', '')] ? GyakEmbed.param('tipus', '') : 'jly';
+const TYPE = TYPES[TYPE_KEY];
+document.title = TYPE.title;
+
+/* =========================================================
+   Állapot
+   ========================================================= */
+const MAX_HISTORY = 10;
+let words = [];               // [{ word, spots }]
+const history = [];
+let current = null;           // { word, index, part }
+let answered = true;          // amíg nincs szó, nincs mit megválaszolni
+let finished = false;         // beágyazott módban elértük a célszámot
+const stats = { correct: 0, all: 0 };
+
+const wordEl = document.getElementById('word');
+const optionsEl = document.getElementById('options');
+const nextBtn = document.getElementById('nextBtn');
+const messageEl = document.getElementById('message');
+
+const optionButtons = [document.createElement('button'), document.createElement('button')];
+optionButtons.forEach((btn, i) => {
+    btn.type = 'button';
+    btn.className = 'option-btn fade';
+    btn.disabled = true;
+    btn.addEventListener('click', () => answer(i));
+    optionsEl.appendChild(btn);
+});
+
+/* =========================================================
+   Szólista
+   ========================================================= */
+function parseWords(text) {
+    const list = [], seen = new Set();
+    text.split(/\r?\n/).forEach((line, n) => {
+        /* "szó", formátum is elfogadott (a régi beágyazott tömbből másolva) */
+        const w = line.trim().replace(/,$/, '').replace(/^["']|["']$/g, '').trim();
+        if (!w || w.startsWith('#') || seen.has(w)) return;
+        const spots = TYPE.spots(w);
+        if (!spots.length) {
+            console.warn(`${TYPE.words} ${n + 1}. sor kihagyva (nincs benne kérdezhető hely): ${w}`);
+            return;
+        }
+        seen.add(w);
+        list.push({ word: w, spots });
+    });
+    return list;
+}
+
+function showMessage(text) {
+    messageEl.textContent = text;
+    messageEl.hidden = false;
+    nextBtn.hidden = true;
+    optionsEl.hidden = true;
+}
+
+async function loadWords() {
+    try {
+        const res = await fetch(TYPE.words, { cache: 'no-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        words = parseWords(await res.text());
+    } catch (err) {
+        showMessage('Nem sikerült betölteni a szólistát (szavak.txt). ' +
+                    'Az oldalt a serve.py-val indítva, http-n keresztül kell megnyitni.');
+        return false;
+    }
+    if (words.length < 2) {
+        showMessage('A szólista nem tartalmaz elég használható szót.');
+        return false;
+    }
+    return true;
+}
+
+function pickWord() {
+    let available = words.filter(w => !history.includes(w.word));
+    if (available.length === 0) { history.length = 0; available = [...words]; }
+    const entry = available[Math.floor(Math.random() * available.length)];
+    history.push(entry.word);
+    if (history.length > Math.min(MAX_HISTORY, words.length - 1)) history.shift();
+    const spot = entry.spots[Math.floor(Math.random() * entry.spots.length)];
+    return { word: entry.word, index: spot.index, part: spot.part };
+}
+
+/* =========================================================
+   Megjelenítés és válasz
+   ========================================================= */
+function updateStatsUI() {
+    document.getElementById('score').textContent = `Pontszám: ${stats.correct} / ${stats.all}`;
+}
+
+/* "ly" + "J" -> "Ly": ha a minta nagybetűvel kezdődik, a szöveg is */
+function matchCase(text, ref) {
+    const first = ref.charAt(0);
+    return first !== first.toLowerCase() ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+function newWord() {
+    if (finished) return;
+    nextBtn.disabled = true;
+    optionButtons.forEach(b => {
+        b.disabled = true;
+        b.classList.remove('correct', 'wrong');
+        b.classList.add('fade');
+    });
+    wordEl.classList.remove('fade-in', 'celebrate', 'shake');
+    wordEl.classList.add('fade-out');
+
+    setTimeout(() => {
+        current = pickWord();
+        const w = current.word;
+        wordEl.textContent = w.slice(0, current.index) + '__' + w.slice(current.index + current.part.length);
+
+        /* a gombok a kérdéses rész írásmódját követik: szó elején J / Ly */
+        TYPE.pair(current.part.toLowerCase()).map(t => matchCase(t, current.part)).forEach((text, i) => {
+            optionButtons[i].textContent = text;
+            optionButtons[i].setAttribute('aria-label', `A hiányzó rész: ${text}`);
+        });
+
+        wordEl.classList.remove('fade-out');
+        void wordEl.offsetWidth;
+        wordEl.classList.add('fade-in');
+        optionButtons.forEach(b => { b.disabled = false; b.classList.remove('fade'); });
+        answered = false;
+    }, 300);
+}
+
+function answer(i) {
+    if (answered || finished || !current) return;
+    answered = true;
+    const button = optionButtons[i];
+    const isCorrect = button.textContent === current.part;
+
+    optionButtons.forEach(b => b.disabled = true);
+    nextBtn.disabled = false;
+    stats.all++;
+
+    /* válasz után a teljes szó látszik, a kérdéses rész kiemelve */
+    const w = current.word;
+    wordEl.textContent = w.slice(0, current.index);
+    const part = document.createElement('span');
+    part.className = 'part';
+    part.textContent = current.part;
+    wordEl.append(part, w.slice(current.index + current.part.length));
+    wordEl.classList.remove('fade-in');
+    void wordEl.offsetWidth;
+
+    if (isCorrect) {
+        stats.correct++;
+        button.classList.add('correct');
+        wordEl.classList.add('celebrate');
+    } else {
+        button.classList.add('wrong');
+        optionButtons.forEach(b => { if (b.textContent === current.part) b.classList.add('correct'); });
+        wordEl.classList.add('shake');
+    }
+    updateStatsUI();
+
+    if (GyakEmbed.active) {
+        const wrong = stats.all - stats.correct;
+        GyakEmbed.progress(stats.correct, wrong, stats.all);
+        if (stats.all >= GyakEmbed.target) {
+            /* A jelentés a gomb megnyomásáig vár, hogy az utolsó szó
+               értékelése is látható maradjon. */
+            nextBtn.textContent = 'Tovább';
+            nextBtn.onclick = () => {
+                if (finished) return;
+                finished = true;
+                nextBtn.disabled = true;
+                GyakEmbed.done(stats.correct, wrong);
+            };
+        }
+    }
+}
+
+/* =========================================================
+   Billentyűzet
+   ========================================================= */
+function handleKey(key) {
+    if (!answered) {
+        if (key === 'ArrowLeft' || key === '1') answer(0);
+        else if (key === 'ArrowRight' || key === '2') answer(1);
+        else {
+            const i = optionButtons.findIndex(b => b.textContent.length === 1
+                                                && b.textContent.toLowerCase() === key.toLowerCase());
+            if (i >= 0) answer(i);
+        }
+    } else if ((key === 'Enter' || key === ' ') && !nextBtn.disabled && !nextBtn.hidden) {
+        nextBtn.click();
+    }
+}
+document.addEventListener('keydown', (e) => {
+    /* fókuszált gombon az Enter/szóköz magát a gombot nyomja meg */
+    if (e.target && e.target.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ' ') e.preventDefault();
+    handleKey(e.key);
+});
+GyakEmbed.onKey(handleKey);       // szülő oldalról továbbított billentyűk
+
+nextBtn.onclick = newWord;
+updateStatsUI();
+loadWords().then(ok => { if (ok) newWord(); });
+</script>
+</body>
+</html>

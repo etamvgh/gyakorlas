@@ -39,9 +39,16 @@
     /* ---------- Beállító és eredmény képernyő ---------- */
     #start-screen, #score-screen {
         align-items: center;
-        justify-content: center;
         overflow-y: auto;
         padding: 20px;
+    }
+    /* Függőleges középre igazítás auto margóval, NEM justify-content: center-rel:
+       ha a kártya magasabb az ablaknál, a justify-content a teteje felé is
+       kilógatná, és az a rész görgetéssel sem érhető el. Az auto margó
+       ilyenkor 0-ra esik, a kártya a tetejétől görgethető. */
+    #start-screen > .card, #score-screen > .card {
+        margin: auto 0;
+        flex-shrink: 0;
     }
     .card {
         background: #ffffffdd;
@@ -358,6 +365,7 @@ const TYPES = [
     { id: 'nyitottx',    name: 'Nyitott mondat (szorzás)', op: '', url: 'matek/nyitottx/nyitottx.html' },
     { id: 'nyitottxmod', name: 'Nyitott mondat (szorzás, maradékos)', op: '', url: 'matek/nyitottxmod/nyitottxmod.html' },
     { id: 'jly',         name: 'j / ly',      op: '',  url: 'magyar/jly2/jly2.html' },
+    { id: 'ou',          name: 'o-ó, ö-ő, u-ú, ü-ű', op: '', url: 'magyar/ou/ou.html' },
     { id: 'elvalasztas', name: 'Elválasztás', op: '',  url: 'magyar/elvalasztas/elvalasztas.html' },
 ];
 
